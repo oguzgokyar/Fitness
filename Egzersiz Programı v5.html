@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fitness Program Oluşturucu (Modern)</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
+
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3b82f6',
+                        secondary: '#64748b',
+                        danger: '#ef4444',
+                        success: '#22c55e',
+                        warning: '#f59e0b',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        [x-cloak] {
+            display: none !important;
+        }
+
+        /* Print Styles */
+        @media print {
+            .no-print {
+                display: none !important;
+            }
+
+            .print-area {
+                box-shadow: none !important;
+                border: none !important;
+                width: 100% !important;
+                max-width: none !important;
+            }
+
+            body {
+                background: white !important;
+                color: black !important;
+            }
+
+            .dark body {
+                background: white !important;
+                color: black !important;
+            }
+
+            .dark .card,
+            .dark .bg-slate-800,
+            .dark .bg-slate-900,
+            .dark .bg-slate-700 {
+                background: white !important;
+                border: 1px solid #ddd !important;
+                color: black !important;
+            }
+
+            .dark h1,
+            .dark h2,
+            .dark h3,
+            .dark h4,
+            .dark p,
+            .dark span,
+            .dark label,
+            .dark input {
+                color: black !important;
+            }
+
+            /* Hide dark mode toggle in print */
+            button[title="Aydınlık Mod"],
+            button[title="Karanlık Mod"] {
+                display: none !important;
+            }
+
+            .card {
+                break-inside: avoid;
+                border: 1px solid #ddd;
+            }
+
+            .print-footer {
+                display: flex !important;
+            }
+
+            /* Pagination Print Styles */
+            #print-container {
+                display: block !important;
+            }
+
+            body>*:not(#print-container) {
+                display: none !important;
+            }
+
+            .print-page {
+                width: 210mm;
+                height: 290mm;
+                /* Adjusted for safety */
+                page-break-after: always;
+                break-after: always;
+                display: flex;
+                flex-direction: column;
+                padding: 10mm;
+                background: white;
+                overflow: hidden;
+            }
+
+            .print-page:last-child {
+                page-break-after: auto;
+                break-after: auto;
+            }
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        /* Dark Mode Scrollbar */
+        .dark ::-webkit-scrollbar-track {
+            background: #0f172a;
+            /* slate-900 */
+        }
+
+        .dark ::-webkit-scrollbar-thumb {
+            background: #475569;
+            /* slate-600 */
+        }
+
+        .dark ::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+            /* slate-500 */
+        }
+    </style>
+</head>
+
+<body
+    class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 h-screen flex flex-col overflow-hidden transition-colors duration-300"
+    x-data="fitnessApp()" x-init="initApp()">
+
+    <!-- Print Container (Hidden by default) -->
+    <div id="print-container" class="hidden bg-white text-black">
+        <!-- Content injected via JS -->
+    </div>
+
+    <!-- Header -->
+    <header
+        class="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 shadow-sm z-20 no-print flex-shrink-0 transition-colors duration-300">
+        <div class="max-w-[1600px] mx-auto px-4 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <img src="https://genclikspor.sultanbeyli.bel.tr/wp-content/uploads/2025/03/cfaa4b07-dfa2-4285-876c-656a144fd43a.png"
+                    alt="Logo" class="h-16 w-auto object-contain">
+                <h1 class="font-bold text-xl text-slate-800 dark:text-white">Egzersiz Oluşturucu</h1>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <button @click="toggleTheme()"
+                    class="p-2 rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700 transition-colors"
+                    :title="darkMode ? 'Aydınlık Mod' : 'Karanlık Mod'">
+                    <i class="ph text-xl" :class="darkMode ? 'ph-sun' : 'ph-moon'"></i>
+                </button>
+
+                <div class="h-6 w-px bg-slate-200 dark:bg-slate-700 mx-1"></div>
+
+                <button @click="modals.savedPrograms = true"
+                    class="btn-secondary flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600">
+                    <i class="ph ph-folder-open text-lg"></i>
+                    <span class="hidden sm:inline">Hazır Programlar</span>
+                </button>
+
+                <div class="h-6 w-px bg-slate-200 dark:bg-slate-700 mx-1"></div>
+
+                <button @click="modals.addCategory = true"
+                    class="flex items-center gap-2 px-3 py-2 bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/50 transition-colors text-sm font-medium border border-transparent dark:border-green-900/50">
+                    <i class="ph ph-folder-plus text-lg"></i>
+                    <span class="hidden sm:inline">Kategori Ekle</span>
+                </button>
+
+                <button x-show="view === 'category-detail'" @click="modals.addExercise = true"
+                    class="flex items-center gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors text-sm font-medium border border-transparent dark:border-blue-900/50"
+                    x-cloak>
+                    <i class="ph ph-plus-circle text-lg"></i>
+                    <span class="hidden sm:inline">Hareket Ekle</span>
+                </button>
+
+                <button @click="addTitleToProgram()"
+                    class="flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/50 transition-colors text-sm font-medium border border-transparent dark:border-amber-900/50">
+                    <i class="ph ph-text-t text-lg"></i>
+                    <span class="hidden sm:inline">Başlık Ekle</span>
+                </button>
+
+                <div class="h-6 w-px bg-slate-200 dark:bg-slate-700 mx-1"></div>
+
+                <div class="flex items-center gap-1">
+                    <button @click="importData()"
+                        class="p-2 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700 rounded-lg"
+                        title="İçe Aktar">
+                        <i class="ph ph-upload-simple text-xl"></i>
+                    </button>
+                    <button @click="exportData()"
+                        class="p-2 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700 rounded-lg"
+                        title="Dışa Aktar">
+                        <i class="ph ph-download-simple text-xl"></i>
+                    </button>
+                    <button @click="printProgram()" :disabled="programExercises.length === 0"
+                        class="p-2 text-primary hover:bg-blue-50 dark:hover:bg-slate-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Yazdır">
+                        <i class="ph ph-printer text-xl"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex overflow-hidden max-w-[1600px] mx-auto w-full">
+
+        <!-- Left Panel: Library -->
+        <div
+            class="flex-1 flex flex-col min-w-0 bg-slate-50/50 dark:bg-slate-900/50 no-print transition-colors duration-300">
+            <!-- Breadcrumb / Navigation -->
+            <div class="px-6 py-4 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <button x-show="view === 'category-detail'" @click="view = 'categories'; currentCategoryId = null"
+                        class="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors text-slate-800 dark:text-slate-200"
+                        x-cloak>
+                        <i class="ph ph-arrow-left text-lg"></i>
+                    </button>
+                    <h2 class="text-lg font-semibold text-slate-800 dark:text-white"
+                        x-text="view === 'categories' ? 'Egzersiz Kütüphanesi' : getCategoryName(currentCategoryId)">
+                    </h2>
+                </div>
+                <span
+                    class="text-xs font-medium px-2.5 py-1 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-full"
+                    x-text="view === 'categories' ? categories.length + ' Kategori' : getCategoryExerciseCount(currentCategoryId) + ' Hareket'"></span>
+            </div>
+
+            <!-- Content Area -->
+            <div class="flex-1 overflow-y-auto p-6 pt-0">
+
+                <!-- Categories Grid -->
+                <div x-show="view === 'categories'"
+                    class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    <template x-for="category in categories" :key="category.id">
+                        <div class="group bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-all cursor-pointer overflow-hidden relative"
+                            @click="openCategory(category.id)">
+                            <!-- Delete Button -->
+                            <button @click.stop="deleteCategory(category.id)"
+                                class="absolute top-2 right-2 z-10 w-8 h-8 bg-white/90 backdrop-blur rounded-full flex items-center justify-center text-slate-400 hover:text-danger shadow-sm opacity-0 group-hover:opacity-100 transition-opacity">
+                                <i class="ph ph-trash"></i>
+                            </button>
+
+                            <div class="aspect-video w-full overflow-hidden bg-slate-100 dark:bg-slate-700">
+                                <img :src="category.coverImage"
+                                    class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+                            </div>
+                            <div class="p-4">
+                                <h3 class="font-semibold text-slate-800 dark:text-white truncate"
+                                    x-text="category.name"></h3>
+                                <p class="text-sm text-slate-500 dark:text-slate-400 mt-1"
+                                    x-text="category.exercises.length + ' hareket'">
+                                </p>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- Empty State -->
+                    <div x-show="categories.length === 0"
+                        class="col-span-full flex flex-col items-center justify-center py-12 text-slate-400 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800/50">
+                        <i class="ph ph-folder-dashed text-4xl mb-3"></i>
+                        <p>Henüz kategori bulunmuyor.</p>
+                        <button @click="modals.addCategory = true"
+                            class="mt-4 text-primary font-medium hover:underline">Yeni Kategori Ekle</button>
+                    </div>
+                </div>
+
+                <!-- Exercises Grid -->
+                <div x-show="view === 'category-detail'"
+                    class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" x-cloak>
+                    <template x-for="exercise in getCurrentExercises()" :key="exercise.id">
+                        <div
+                            class="group bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-all overflow-hidden relative">
+                            <!-- Delete Button -->
+                            <button @click.stop="deleteExercise(currentCategoryId, exercise.id)"
+                                class="absolute top-2 right-2 z-10 w-8 h-8 bg-white/90 backdrop-blur rounded-full flex items-center justify-center text-slate-400 hover:text-danger shadow-sm opacity-0 group-hover:opacity-100 transition-opacity">
+                                <i class="ph ph-trash"></i>
+                            </button>
+
+                            <div class="aspect-video w-full overflow-hidden bg-slate-100 dark:bg-slate-700">
+                                <img :src="exercise.imageUrl" class="w-full h-full object-cover">
+                            </div>
+                            <div class="p-4">
+                                <h3 class="font-semibold text-slate-800 dark:text-white truncate mb-3"
+                                    x-text="exercise.name"></h3>
+
+                                <div class="grid grid-cols-2 gap-2 mb-4">
+                                    <div>
+                                        <label class="text-xs text-slate-500 dark:text-slate-400 block mb-1">Set</label>
+                                        <input type="number" x-model="exercise.sets" @change="saveState()"
+                                            class="w-full px-2 py-1 text-sm border border-slate-200 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none">
+                                    </div>
+                                    <div>
+                                        <label
+                                            class="text-xs text-slate-500 dark:text-slate-400 block mb-1">Tekrar</label>
+                                        <input type="number" x-model="exercise.reps" @change="saveState()"
+                                            class="w-full px-2 py-1 text-sm border border-slate-200 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none">
+                                    </div>
+                                </div>
+
+                                <button @click="addToProgram(currentCategoryId, exercise.id)"
+                                    class="w-full py-2 bg-slate-800 dark:bg-slate-700 text-white rounded-lg text-sm font-medium hover:bg-slate-700 dark:hover:bg-slate-600 transition-colors flex items-center justify-center gap-2">
+                                    <i class="ph ph-plus"></i> Programa Ekle
+                                </button>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- Empty State -->
+                    <div x-show="getCurrentExercises().length === 0"
+                        class="col-span-full flex flex-col items-center justify-center py-12 text-slate-400 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800/50">
+                        <i class="ph ph-barbell text-4xl mb-3"></i>
+                        <p>Bu kategoride henüz hareket yok.</p>
+                        <button @click="modals.addExercise = true"
+                            class="mt-4 text-primary font-medium hover:underline">Yeni Hareket Ekle</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Geliştiri -->
+            <div class="px-6 py-2 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <p class="text-xs font-light text-slate-800 dark:text-white">
+                        © 2025 - Geliştiri : <a href="https://www.instagram.com/oguzgokyar/" target="_blank"
+                            class="font-semibold">@oguzgokyar</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel: Program Builder -->
+        <div
+            class="w-96 bg-white dark:bg-slate-800 border-l border-slate-200 dark:border-slate-700 flex flex-col shadow-xl z-10 print-area transition-colors duration-300">
+            <!-- Program Header -->
+            <div class="p-4 border-b border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800">
+                <label
+                    class="block text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1 no-print">Program
+                    Adı / Öğrenci</label>
+                <input type="text" x-model="programName" @input="saveState()" placeholder="Metin Giriniz..."
+                    class="w-full text-lg font-bold text-slate-800 dark:text-white placeholder-slate-300 dark:placeholder-slate-600 border-none p-0 focus:ring-0 bg-transparent">
+            </div>
+
+            <!-- Program List -->
+            <div class="flex-1 overflow-y-auto p-4 space-y-2" id="program-list" @drop.prevent="handleDrop($event)"
+                @dragover.prevent>
+
+                <template x-for="(item, index) in programExercises" :key="item.id">
+                    <div draggable="true" @dragstart="handleDragStart($event, index)"
+                        @dragover="handleDragOver($event, index)" @drop="handleDrop($event, index)"
+                        @dragend="handleDragEnd"
+                        class="group relative bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg p-3 shadow-sm hover:border-primary/50 transition-colors cursor-move"
+                        :class="{'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800': item.type === 'title'}">
+                        <!-- Title Item -->
+                        <template x-if="item.type === 'title'">
+                            <div class="flex items-center justify-between">
+                                <h4 class="font-bold text-amber-700 dark:text-amber-500 w-full text-center"
+                                    x-text="item.name"></h4>
+                                <button @click="removeFromProgram(item.id)"
+                                    class="text-amber-400 hover:text-amber-600 no-print p-1">
+                                    <i class="ph ph-x"></i>
+                                </button>
+                            </div>
+                        </template>
+
+                        <!-- Exercise Item -->
+                        <template x-if="item.type !== 'title'">
+                            <div class="flex gap-3 relative pr-8">
+                                <button @click.stop="removeFromProgram(item.id)"
+                                    class="absolute -top-1 -right-1 z-10 w-7 h-7 bg-white/90 dark:bg-slate-800/90 backdrop-blur rounded-full flex items-center justify-center text-slate-400 hover:text-danger shadow-sm opacity-0 group-hover:opacity-100 transition-opacity border border-slate-200 dark:border-slate-600 no-print">
+                                    <i class="ph ph-trash"></i>
+                                </button>
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex justify-between items-start">
+                                        <h4 class="font-semibold text-slate-800 dark:text-white text-xl truncate pr-2"
+                                            x-text="item.name"></h4>
+                                    </div>
+                                    <div class="mt-2 flex gap-3 text-l text-slate-500 dark:text-slate-400">
+                                        <span class="bg-slate-100 dark:bg-slate-600 px-2 py-0.5 rounded">Set: <strong
+                                                class="text-slate-700 dark:text-slate-200"
+                                                x-text="item.sets"></strong></span>
+                                        <span class="bg-slate-100 dark:bg-slate-600 px-2 py-0.5 rounded">Tekrar: <strong
+                                                class="text-slate-700 dark:text-slate-200"
+                                                x-text="item.reps"></strong></span>
+                                    </div>
+                                </div>
+                                <div
+                                    class="w-1/3 h-1/3 rounded-md overflow-hidden bg-slate-100 dark:bg-slate-600 flex-shrink-0 border border-slate-100 dark:border-slate-600">
+                                    <img :src="item.imageUrl" class="w-full h-full object-cover">
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+
+                <!-- Empty State -->
+                <div x-show="programExercises.length === 0" class="text-center py-12 px-4 no-print">
+                    <div
+                        class="w-16 h-16 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-3 text-slate-300 dark:text-slate-600">
+                        <i class="ph ph-list-plus text-2xl"></i>
+                    </div>
+                    <p class="text-slate-500 dark:text-slate-400 text-sm">Program boş. Kütüphaneden hareket ekleyin.</p>
+                </div>
+            </div>
+
+            <!-- Footer Actions -->
+            <div class="p-4 border-t border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 no-print">
+                <div class="grid grid-cols-2 gap-2">
+                    <button @click="clearProgram()"
+                        class="px-4 py-2 border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-white dark:hover:bg-slate-700 hover:text-danger hover:border-danger transition-colors text-sm font-medium">
+                        Temizle
+                    </button>
+                    <button @click="modals.saveProgram = true"
+                        class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium shadow-sm shadow-blue-200">
+                        Kaydet
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modals -->
+
+    <!-- Add Category Modal -->
+    <div x-show="modals.addCategory" class="fixed inset-0 z-50 flex items-center justify-center px-4" x-cloak>
+        <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="modals.addCategory = false"></div>
+        <div
+            class="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-md relative z-10 overflow-hidden animate-fade-in-up transition-colors duration-300">
+            <div
+                class="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50">
+                <h3 class="font-semibold text-slate-800 dark:text-white">Yeni Kategori Ekle</h3>
+                <button @click="modals.addCategory = false"
+                    class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><i
+                        class="ph ph-x text-lg"></i></button>
+            </div>
+            <div class="p-6 space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Kategori
+                        Adı <span class="text-red-500">*</span></label>
+                    <input type="text" x-model="forms.category.name"
+                        class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+                        placeholder="Örn: Göğüs, Bacak" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Kapak Resmi (URL) <span class="text-red-500">*</span></label>
+                    <input type="text" x-model="forms.category.imageUrl"
+                        class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+                        placeholder="https://...">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Veya Dosya Yükle <span class="text-red-500">*</span></label>
+                    <input type="file" @change="handleFileUpload($event, 'category')" accept="image/*"
+                        class="w-full text-sm text-slate-500 dark:text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20">
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">* Resim yüklemek zorunludur</p>
+                </div>
+            </div>
+            <div class="px-6 py-4 bg-slate-50 dark:bg-slate-900/50 flex justify-end gap-2">
+                <button @click="modals.addCategory = false"
+                    class="px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-sm font-medium">İptal</button>
+                <button @click="submitCategory()"
+                    class="px-4 py-2 bg-success text-white rounded-lg hover:bg-green-600 text-sm font-medium">Ekle</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Exercise Modal -->
+    <div x-show="modals.addExercise" class="fixed inset-0 z-50 flex items-center justify-center px-4" x-cloak>
+        <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="modals.addExercise = false"></div>
+        <div
+            class="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-md relative z-10 overflow-hidden transition-colors duration-300">
+            <div
+                class="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50">
+                <h3 class="font-semibold text-slate-800 dark:text-white">Yeni Hareket Ekle</h3>
+                <button @click="modals.addExercise = false"
+                    class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><i
+                        class="ph ph-x text-lg"></i></button>
+            </div>
+            <div class="p-6 space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Hareket
+                        Adı <span class="text-red-500">*</span></label>
+                    <input type="text" x-model="forms.exercise.name"
+                        class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+                        placeholder="Örn: Bench Press" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Resim (URL) <span class="text-red-500">*</span></label>
+                    <input type="text" x-model="forms.exercise.imageUrl"
+                        class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+                        placeholder="https://...">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Veya Dosya Yükle <span class="text-red-500">*</span></label>
+                    <input type="file" @change="handleFileUpload($event, 'exercise')" accept="image/*"
+                        class="w-full text-sm text-slate-500 dark:text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20">
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">* Resim yüklemek zorunludur</p>
+                </div>
+            </div>
+            <div class="px-6 py-4 bg-slate-50 dark:bg-slate-900/50 flex justify-end gap-2">
+                <button @click="modals.addExercise = false"
+                    class="px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-sm font-medium">İptal</button>
+                <button @click="submitExercise()"
+                    class="px-4 py-2 bg-success text-white rounded-lg hover:bg-green-600 text-sm font-medium">Ekle</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Save Program Modal -->
+    <div x-show="modals.saveProgram" class="fixed inset-0 z-50 flex items-center justify-center px-4" x-cloak>
+        <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="modals.saveProgram = false"></div>
+        <div
+            class="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-md relative z-10 overflow-hidden transition-colors duration-300">
+            <div
+                class="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50">
+                <h3 class="font-semibold text-slate-800 dark:text-white">Programı Kaydet</h3>
+                <button @click="modals.saveProgram = false"
+                    class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><i
+                        class="ph ph-x text-lg"></i></button>
+            </div>
+            <div class="p-6">
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Program Adı</label>
+                <input type="text" x-model="programName"
+                    class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+                    placeholder="Program adı girin...">
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-2">Bu program "Hazır Programlar" listenize
+                    eklenecektir.</p>
+            </div>
+            <div class="px-6 py-4 bg-slate-50 dark:bg-slate-900/50 flex justify-end gap-2">
+                <button @click="modals.saveProgram = false"
+                    class="px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-sm font-medium">İptal</button>
+                <button @click="saveCurrentProgram()"
+                    class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-600 text-sm font-medium">Kaydet</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Saved Programs List Modal -->
+    <div x-show="modals.savedPrograms" class="fixed inset-0 z-50 flex items-center justify-center px-4" x-cloak>
+        <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="modals.savedPrograms = false"></div>
+        <div
+            class="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-2xl relative z-10 overflow-hidden flex flex-col max-h-[80vh] transition-colors duration-300">
+            <div
+                class="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50">
+                <h3 class="font-semibold text-slate-800 dark:text-white">Hazır Programlar</h3>
+                <button @click="modals.savedPrograms = false"
+                    class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><i
+                        class="ph ph-x text-lg"></i></button>
+            </div>
+            <div class="p-0 overflow-y-auto flex-1">
+                <template x-if="savedPrograms.length === 0">
+                    <div class="p-8 text-center text-slate-400">
+                        <i class="ph ph-folder-dashed text-4xl mb-2"></i>
+                        <p>Henüz kayıtlı program yok.</p>
+                    </div>
+                </template>
+                <div class="divide-y divide-slate-100 dark:divide-slate-700">
+                    <template x-for="program in savedPrograms" :key="program.id">
+                        <div
+                            class="p-4 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center justify-between group">
+                            <div>
+                                <h4 class="font-semibold text-slate-800 dark:text-white" x-text="program.name"></h4>
+                                <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                    <span x-text="program.createdAt"></span> •
+                                    <span x-text="program.exercises.length + ' Hareket'"></span>
+                                </p>
+                            </div>
+                            <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button @click="loadProgram(program.id)"
+                                    class="px-3 py-1.5 bg-primary/10 text-primary rounded-lg text-sm font-medium hover:bg-primary hover:text-white transition-colors">
+                                    Yükle
+                                </button>
+                                <button @click="deleteSavedProgram(program.id)"
+                                    class="px-3 py-1.5 bg-red-50 text-danger rounded-lg text-sm font-medium hover:bg-danger hover:text-white transition-colors">
+                                    Sil
+                                </button>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+            <div
+                class="px-6 py-4 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-700 flex justify-end">
+                <button @click="modals.savedPrograms = false"
+                    class="px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-sm font-medium">Kapat</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Logic -->
+    <script>
+        function fitnessApp() {
+            return {
+                // State
+                categories: [],
+                programExercises: [],
+                savedPrograms: [],
+                programName: '',
+                view: 'categories', // 'categories' or 'category-detail'
+                currentCategoryId: null,
+                darkMode: false,
+
+                // UI State
+                modals: {
+                    addCategory: false,
+                    addExercise: false,
+                    saveProgram: false,
+                    savedPrograms: false
+                },
+                forms: {
+                    category: { name: '', imageUrl: '' },
+                    exercise: { name: '', imageUrl: '' }
+                },
+                draggedItemIndex: null,
+
+                // Initialization
+                initApp() {
+                    // Load from localStorage
+                    this.categories = JSON.parse(localStorage.getItem('categories')) || [];
+                    this.programExercises = JSON.parse(localStorage.getItem('programExercises')) || [];
+                    this.savedPrograms = JSON.parse(localStorage.getItem('savedPrograms')) || [];
+                    this.programName = localStorage.getItem('programName') || '';
+
+                    const pageState = JSON.parse(localStorage.getItem('pageState')) || {};
+                    if (pageState.view) {
+                        this.view = pageState.view;
+                        this.currentCategoryId = pageState.currentCategoryId;
+                    }
+
+                    // Dark Mode Init
+                    if (localStorage.getItem('darkMode') === 'true' || (!('darkMode' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                        this.darkMode = true;
+                        document.documentElement.classList.add('dark');
+                    } else {
+                        this.darkMode = false;
+                        document.documentElement.classList.remove('dark');
+                    }
+
+                    // Watch for changes to save state
+                    this.$watch('categories', () => this.saveState());
+                    this.$watch('programExercises', () => this.saveState());
+                    this.$watch('savedPrograms', () => this.saveState());
+                    this.$watch('programName', () => {
+                        localStorage.setItem('programName', this.programName);
+                    });
+                    this.$watch('view', () => this.savePageState());
+                    this.$watch('currentCategoryId', () => this.savePageState());
+
+                    this.$watch('darkMode', val => {
+                        localStorage.setItem('darkMode', val);
+                        if (val) {
+                            document.documentElement.classList.add('dark');
+                        } else {
+                            document.documentElement.classList.remove('dark');
+                        }
+                    });
+                },
+
+                toggleTheme() {
+                    this.darkMode = !this.darkMode;
+                },
+
+                saveState() {
+                    localStorage.setItem('categories', JSON.stringify(this.categories));
+                    localStorage.setItem('programExercises', JSON.stringify(this.programExercises));
+                    localStorage.setItem('savedPrograms', JSON.stringify(this.savedPrograms));
+                },
+
+                savePageState() {
+                    localStorage.setItem('pageState', JSON.stringify({
+                        view: this.view,
+                        currentCategoryId: this.currentCategoryId
+                    }));
+                },
+
+                // Category Logic
+                openCategory(id) {
+                    this.currentCategoryId = id;
+                    this.view = 'category-detail';
+                },
+
+                getCategoryName(id) {
+                    const cat = this.categories.find(c => c.id === id);
+                    return cat ? cat.name : '';
+                },
+
+                getCategoryExerciseCount(id) {
+                    const cat = this.categories.find(c => c.id === id);
+                    return cat ? cat.exercises.length : 0;
+                },
+
+                getCurrentExercises() {
+                    const cat = this.categories.find(c => c.id === this.currentCategoryId);
+                    return cat ? cat.exercises : [];
+                },
+
+                async submitCategory() {
+                    if (!this.forms.category.name) return alert('Kategori adı gerekli!');
+                    if (!this.forms.category.imageUrl) return alert('Kategori için kapak resmi zorunludur! Lütfen bir resim yükleyin veya URL girin.');
+
+                    const newCategory = {
+                        id: Date.now().toString(),
+                        name: this.forms.category.name,
+                        coverImage: this.forms.category.imageUrl,
+                        exercises: []
+                    };
+
+                    this.categories.push(newCategory);
+                    this.forms.category = { name: '', imageUrl: '' };
+                    this.modals.addCategory = false;
+                },
+
+                deleteCategory(id) {
+                    if (confirm('Bu kategoriyi silmek istediğinize emin misiniz?')) {
+                        this.categories = this.categories.filter(c => c.id !== id);
+                        // Also remove exercises from program that belonged to this category
+                        this.programExercises = this.programExercises.filter(ex => ex.categoryId !== id);
+                        if (this.currentCategoryId === id) {
+                            this.view = 'categories';
+                            this.currentCategoryId = null;
+                        }
+                    }
+                },
+
+                // Exercise Logic
+                async submitExercise() {
+                    if (!this.forms.exercise.name) return alert('Hareket adı gerekli!');
+                    if (!this.forms.exercise.imageUrl) return alert('Hareket için resim zorunludur! Lütfen bir resim yükleyin veya URL girin.');
+
+                    const category = this.categories.find(c => c.id === this.currentCategoryId);
+                    if (!category) return;
+
+                    const newExercise = {
+                        id: Date.now().toString(),
+                        name: this.forms.exercise.name,
+                        imageUrl: this.forms.exercise.imageUrl,
+                        sets: 3,
+                        reps: 10
+                    };
+
+                    category.exercises.push(newExercise);
+                    this.forms.exercise = { name: '', imageUrl: '' };
+                    this.modals.addExercise = false;
+                },
+
+                deleteExercise(catId, exId) {
+                    if (confirm('Bu hareketi silmek istediğinize emin misiniz?')) {
+                        const category = this.categories.find(c => c.id === catId);
+                        if (category) {
+                            category.exercises = category.exercises.filter(ex => ex.id !== exId);
+                            // Remove from program
+                            this.programExercises = this.programExercises.filter(ex => ex.libraryId !== exId);
+                        }
+                    }
+                },
+
+                // Program Logic
+                addToProgram(catId, exId) {
+                    const category = this.categories.find(c => c.id === catId);
+                    const exercise = category.exercises.find(ex => ex.id === exId);
+
+                    if (exercise) {
+                        this.programExercises.push({
+                            id: Date.now().toString(),
+                            libraryId: exercise.id,
+                            categoryId: catId,
+                            name: exercise.name,
+                            imageUrl: exercise.imageUrl,
+                            sets: exercise.sets,
+                            reps: exercise.reps,
+                            type: 'exercise'
+                        });
+                    }
+                },
+
+                addTitleToProgram() {
+                    const title = prompt('Başlık girin (Örn: Isınma, 1. Gün):');
+                    if (title) {
+                        this.programExercises.push({
+                            id: Date.now().toString(),
+                            name: title,
+                            type: 'title'
+                        });
+                    }
+                },
+
+                removeFromProgram(id) {
+                    this.programExercises = this.programExercises.filter(item => item.id !== id);
+                },
+
+                clearProgram() {
+                    if (confirm('Programı temizlemek istediğinize emin misiniz?')) {
+                        this.programExercises = [];
+                        this.programName = '';
+                    }
+                },
+
+                // Drag and Drop
+                handleDragStart(e, index) {
+                    this.draggedItemIndex = index;
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.target.style.opacity = '0.5';
+                },
+
+                handleDragOver(e, index) {
+                    // Necessary to allow dropping
+                },
+
+                handleDrop(e, targetIndex) {
+                    e.target.style.opacity = '1';
+                    if (this.draggedItemIndex === null) return;
+
+                    // Reorder
+                    const item = this.programExercises.splice(this.draggedItemIndex, 1)[0];
+                    this.programExercises.splice(targetIndex, 0, item);
+
+                    this.draggedItemIndex = null;
+                },
+
+                handleDragEnd(e) {
+                    e.target.style.opacity = '1';
+                    this.draggedItemIndex = null;
+                },
+
+                // Saved Programs
+                saveCurrentProgram() {
+                    if (!this.programName) return alert('Lütfen program adı girin.');
+                    if (this.programExercises.length === 0) return alert('Program boş!');
+
+                    this.savedPrograms.push({
+                        id: Date.now().toString(),
+                        name: this.programName,
+                        createdAt: new Date().toLocaleDateString('tr-TR'),
+                        exercises: JSON.parse(JSON.stringify(this.programExercises))
+                    });
+
+                    this.modals.saveProgram = false;
+                    alert('Program kaydedildi!');
+                },
+
+                loadProgram(id) {
+                    if (this.programExercises.length > 0 && !confirm('Mevcut program silinecek. Devam edilsin mi?')) return;
+
+                    const program = this.savedPrograms.find(p => p.id === id);
+                    if (program) {
+                        this.programExercises = JSON.parse(JSON.stringify(program.exercises));
+                        this.programName = program.name;
+                        this.modals.savedPrograms = false;
+                    }
+                },
+
+                deleteSavedProgram(id) {
+                    if (confirm('Bu kayıtlı programı silmek istediğinize emin misiniz?')) {
+                        this.savedPrograms = this.savedPrograms.filter(p => p.id !== id);
+                    }
+                },
+
+                // Utilities
+                handleFileUpload(event, type) {
+                    const file = event.target.files[0];
+                    if (!file) return;
+
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        if (type === 'category') this.forms.category.imageUrl = e.target.result;
+                        if (type === 'exercise') this.forms.exercise.imageUrl = e.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                },
+
+                exportData() {
+                    const data = {
+                        version: '3.1',
+                        categories: this.categories,
+                        savedPrograms: this.savedPrograms
+                    };
+                    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'fitness_yedek.json';
+                    a.click();
+                },
+
+                importData() {
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.accept = 'application/json';
+                    input.onchange = (e) => {
+                        const file = e.target.files[0];
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                            try {
+                                const data = JSON.parse(e.target.result);
+                                if (data.categories) this.categories = data.categories;
+                                if (data.savedPrograms) this.savedPrograms = data.savedPrograms;
+                                alert('Yedek başarıyla yüklendi!');
+                            } catch (err) {
+                                alert('Dosya okuma hatası!');
+                            }
+                        };
+                        reader.readAsText(file);
+                    };
+                    input.click();
+                },
+
+                printProgram() {
+                    const container = document.getElementById('print-container');
+                    container.innerHTML = ''; // Clear previous
+
+                    const items = this.programExercises;
+                    if (items.length === 0) return alert('Yazdırılacak program yok!');
+
+                    const chunkSize = 5;
+                    const chunks = [];
+                    for (let i = 0; i < items.length; i += chunkSize) {
+                        chunks.push(items.slice(i, i + chunkSize));
+                    }
+
+                    chunks.forEach((chunk, pageIndex) => {
+                        const page = document.createElement('div');
+                        page.className = 'print-page';
+
+                        // Header
+                        let headerHtml = `
+                            <div class="flex items-center justify-between mb-4 border-b border-slate-200 pb-2 h-[25mm]">
+                                <div class="flex items-center gap-4">
+                                    <img src="https://genclikspor.sultanbeyli.bel.tr/wp-content/uploads/2025/03/cfaa4b07-dfa2-4285-876c-656a144fd43a.png" class="h-12 w-auto object-contain">
+                                    <div>
+                                        <h1 class="text-xl font-bold text-slate-800">Egzersiz Programı</h1>
+                                        <p class="text-slate-500 text-xs">${this.programName || 'İsimsiz Program'}</p>
+                                    </div>
+                                </div>
+                                <div class="text-right text-xs text-slate-400">
+                                    Sayfa ${pageIndex + 1} / ${chunks.length}
+                                </div>
+                            </div>
+                            <div class="flex flex-col gap-3 flex-1"> 
+                        `;
+
+                        // Items
+                        chunk.forEach(item => {
+                            if (item.type === 'title') {
+                                headerHtml += `
+                                    <div class="bg-amber-50 border border-amber-200 rounded p-2 text-center shrink-0">
+                                        <h4 class="font-bold text-amber-800 text-base">${item.name}</h4>
+                                    </div>
+                                `;
+                            } else {
+                                headerHtml += `
+                                    <div class="flex border border-slate-200 rounded overflow-hidden bg-white shrink-0 h-[38mm]">
+                                        <div class="flex-1 p-3 flex flex-col justify-center min-w-0">
+                                            <h4 class="font-bold text-slate-800 text-lg mb-1 truncate">${item.name}</h4>
+                                            <div class="flex gap-2 text-xs">
+                                                <span class="bg-slate-100 px-2 py-1 rounded font-medium whitespace-nowrap">Set: ${item.sets}</span>
+                                                <span class="bg-slate-100 px-2 py-1 rounded font-medium whitespace-nowrap">Tekrar: ${item.reps}</span>
+                                            </div>
+                                        </div>
+                                        <div class="w-1/3 bg-slate-100 border-l border-slate-100 shrink-0">
+                                            <img src="${item.imageUrl}" class="w-full h-full object-cover">
+                                        </div>
+                                    </div>
+                                `;
+                            }
+                        });
+
+                        headerHtml += `</div>`; // Close content area
+
+                        // Footer (Flex mt-auto for safety)
+                        headerHtml += `
+                            <div class="mt-auto pt-2 border-t border-slate-200 flex justify-between items-center h-[15mm]">
+                                <img src="https://genclikspor.sultanbeyli.bel.tr/wp-content/uploads/2025/03/cfaa4b07-dfa2-4285-876c-656a144fd43a.png" class="h-10 w-auto object-contain">
+                                <img src="https://kultursanat.sultanbeyli.bel.tr/wp-content/uploads/2023/08/s_logo.png" class="h-10 w-auto object-contain">
+                            </div>
+                        `;
+
+                        page.innerHTML = headerHtml;
+                        container.appendChild(page);
+                    });
+
+                    // Wait for images to load before printing
+                    const images = container.querySelectorAll('img');
+                    const promises = Array.from(images).map(img => {
+                        if (img.complete) return Promise.resolve();
+                        return new Promise(resolve => {
+                            img.onload = resolve;
+                            img.onerror = resolve; // Don't block on error
+                        });
+                    });
+
+                    Promise.all(promises).then(() => {
+                        setTimeout(() => { // Small buffer for rendering
+                            window.print();
+                        }, 100);
+                    });
+                }
+            }
+        }
+    </script>
+</body>
+
+</html>

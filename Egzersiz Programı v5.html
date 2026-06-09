@@ -15,6 +15,12 @@
     <!-- Phosphor Icons -->
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
 
+    <!-- Firebase (Compat) -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
+
     <script>
         tailwind.config = {
             darkMode: 'class',
@@ -173,7 +179,7 @@
         class="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 shadow-sm z-20 no-print flex-shrink-0 transition-colors duration-300">
         <div class="max-w-[1600px] mx-auto px-4 h-16 flex items-center justify-between">
             <div class="flex items-center gap-3">
-                <img src="https://genclikspor.sultanbeyli.bel.tr/wp-content/uploads/2025/03/cfaa4b07-dfa2-4285-876c-656a144fd43a.png"
+                <img src="https://firebasestorage.googleapis.com/v0/b/fitnessapp-3508e.firebasestorage.app/o/logo.png?alt=media&token=156a261e-b7d1-4749-af84-aa84548f74cd"
                     alt="Logo" class="h-16 w-auto object-contain">
                 <h1 class="font-bold text-xl text-slate-800 dark:text-white">Egzersiz Oluşturucu</h1>
             </div>
@@ -187,7 +193,7 @@
 
                 <div class="h-6 w-px bg-slate-200 dark:bg-slate-700 mx-1"></div>
 
-                <button @click="modals.savedPrograms = true"
+                <button @click="currentUser ? modals.savedPrograms = true : (authView = 'login')"
                     class="btn-secondary flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-sm font-medium text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600">
                     <i class="ph ph-folder-open text-lg"></i>
                     <span class="hidden sm:inline">Hazır Programlar</span>
@@ -195,13 +201,13 @@
 
                 <div class="h-6 w-px bg-slate-200 dark:bg-slate-700 mx-1"></div>
 
-                <button @click="modals.addCategory = true"
+                <button x-show="currentUser" x-cloak @click="modals.addCategory = true"
                     class="flex items-center gap-2 px-3 py-2 bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/50 transition-colors text-sm font-medium border border-transparent dark:border-green-900/50">
                     <i class="ph ph-folder-plus text-lg"></i>
                     <span class="hidden sm:inline">Kategori Ekle</span>
                 </button>
 
-                <button x-show="view === 'category-detail'" @click="modals.addExercise = true"
+                <button x-show="view === 'category-detail' && canManageCurrentCategory()" @click="modals.addExercise = true"
                     class="flex items-center gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors text-sm font-medium border border-transparent dark:border-blue-900/50"
                     x-cloak>
                     <i class="ph ph-plus-circle text-lg"></i>
@@ -233,9 +239,166 @@
                         <i class="ph ph-printer text-xl"></i>
                     </button>
                 </div>
+
+                <div class="h-6 w-px bg-slate-200 dark:bg-slate-700 mx-1"></div>
+
+                <div class="flex items-center gap-2" x-show="currentUser" x-cloak>
+                    <div class="text-right leading-tight">
+                        <div class="text-xs font-semibold text-slate-700 dark:text-slate-200"
+                            x-text="userProfile?.name || currentUser?.email"></div>
+                        <div class="text-[10px] text-slate-400 uppercase tracking-wider"
+                            x-text="userProfile?.role || '-'"></div>
+                    </div>
+                    <button @click="logout()"
+                        class="px-3 py-2 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                        Çıkış
+                    </button>
+                </div>
+
+                <button x-show="!currentUser" @click="authView = 'login'"
+                    class="px-3 py-2 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                    x-cloak>
+                    Giriş Yap
+                </button>
             </div>
         </div>
     </header>
+
+    <!-- Auth Overlay -->
+    <div x-show="!authReady" class="fixed inset-0 z-50 flex items-center justify-center bg-black/30" x-cloak>
+        <div class="bg-white dark:bg-slate-800 rounded-xl px-6 py-4 shadow-xl text-sm text-slate-600 dark:text-slate-200">
+            Kimlik doğrulama yükleniyor...
+        </div>
+    </div>
+
+    <div x-show="authReady && !currentUser" class="fixed inset-0 z-40 flex items-center justify-center px-4 py-8"
+        x-cloak>
+        <div class="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-900/90 to-slate-800"></div>
+        <div
+            class="relative z-10 w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 overflow-hidden rounded-2xl shadow-2xl border border-slate-200/10">
+            <div class="hidden md:flex flex-col justify-between p-8 bg-slate-900 text-white">
+                <div class="flex items-center gap-3">
+                    <img src="https://firebasestorage.googleapis.com/v0/b/fitnessapp-3508e.firebasestorage.app/o/logo.png?alt=media&token=156a261e-b7d1-4749-af84-aa84548f74cd"
+                        alt="Logo" class="h-12 w-auto object-contain">
+                    <div>
+                        <p class="text-sm uppercase tracking-[0.2em] text-slate-400">Fitness</p>
+                        <h2 class="text-2xl font-semibold">Egzersiz Oluşturucu</h2>
+                    </div>
+                </div>
+                <div class="space-y-4">
+                    <h3 class="text-xl font-semibold">Profesyonel planlama, hızlı üretim</h3>
+                    <p class="text-sm text-slate-300">Kütüphane, program ve yayın süreçlerini tek ekrandan yönetin.</p>
+                    <div class="space-y-2 text-sm text-slate-200">
+                        <div class="flex items-center gap-2"><span
+                                class="inline-flex h-2 w-2 rounded-full bg-success"></span> Hazır kütüphane yönetimi
+                        </div>
+                        <div class="flex items-center gap-2"><span
+                                class="inline-flex h-2 w-2 rounded-full bg-primary"></span> Onaylı program paylaşımı
+                        </div>
+                        <div class="flex items-center gap-2"><span
+                                class="inline-flex h-2 w-2 rounded-full bg-amber-400"></span> Modern ve hızlı yazdırma
+                        </div>
+                    </div>
+                </div>
+                <p class="text-xs text-slate-500">© 2026 Fitness Program Oluşturucu</p>
+            </div>
+            <div class="bg-white dark:bg-slate-800 p-6 md:p-8">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-xl font-semibold text-slate-800 dark:text-white"
+                        x-text="authView === 'signup' ? 'Kayıt Ol' : authView === 'forgot' ? 'Şifre Sıfırla' : authView === 'logout' ? 'Çıkış Yapıldı' : 'Giriş Yap'">
+                    </h3>
+                    <span class="text-xs text-slate-400" x-text="authView === 'logout' ? '' : 'Güvenli erişim'"></span>
+                </div>
+
+                <div class="space-y-4" x-show="authView !== 'logout'" x-cloak>
+                    <template x-if="authView === 'signup'">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Ad
+                                Soyad</label>
+                            <input type="text" x-model="authForm.name"
+                                class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+                                placeholder="Ad Soyad">
+                        </div>
+                    </template>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">E-posta</label>
+                        <input type="email" x-model="authForm.email"
+                            class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+                            placeholder="ornek@firma.com">
+                    </div>
+                    <div x-show="authView !== 'forgot'" x-cloak>
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Şifre</label>
+                        <input type="password" x-model="authForm.password"
+                            class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+                            placeholder="••••••••">
+                    </div>
+
+                    <div x-show="authView === 'signup'" x-cloak>
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Davet Kodu <span class="text-red-500">*</span></label>
+                        <input type="text" x-model="authForm.inviteCode"
+                            class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+                            placeholder="SBFİTNESS">
+                    </div>
+
+                    <p class="text-xs text-slate-500 dark:text-slate-400" x-show="authView === 'signup'" x-cloak>
+                        İlk kayıt olan kullanıcı otomatik olarak <strong>admin</strong> rolüne atanır. Sonraki kayıtlar
+                        <strong>trainer</strong> olur.
+                    </p>
+
+                    <div class="text-xs text-danger" x-show="authError" x-text="authError" x-cloak></div>
+                    <div class="text-xs text-success" x-show="authNotice" x-text="authNotice" x-cloak></div>
+                </div>
+
+                <div class="space-y-3" x-show="authView === 'logout'" x-cloak>
+                    <div
+                        class="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-5 text-center">
+                        <div class="mx-auto mb-3 h-12 w-12 rounded-full bg-success/10 text-success flex items-center justify-center">
+                            <i class="ph ph-check text-2xl"></i>
+                        </div>
+                        <p class="text-sm text-slate-600 dark:text-slate-300">Başarıyla çıkış yaptınız.</p>
+                    </div>
+                </div>
+
+                <div class="mt-6 space-y-2">
+                    <button x-show="authView === 'login'" @click="login()"
+                        class="w-full px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-600 text-sm font-medium">
+                        Giriş Yap
+                    </button>
+                    <button x-show="authView === 'signup'" @click="signup()"
+                        class="w-full px-4 py-2 bg-success text-white rounded-lg hover:bg-green-600 text-sm font-medium">
+                        Kayıt Ol
+                    </button>
+                    <button x-show="authView === 'forgot'" @click="resetPassword()"
+                        class="w-full px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 text-sm font-medium">
+                        Şifre Sıfırla
+                    </button>
+                    <button x-show="authView === 'logout'" @click="authView = 'login'"
+                        class="w-full px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-600 text-sm font-medium">
+                        Giriş Yap
+                    </button>
+                </div>
+
+                <div class="mt-4 flex flex-col gap-2 text-sm text-slate-600 dark:text-slate-300">
+                    <button x-show="authView === 'login'" @click="authView = 'forgot'"
+                        class="text-left hover:underline">
+                        Şifremi unuttum
+                    </button>
+                    <button x-show="authView === 'login'" @click="authView = 'signup'"
+                        class="text-left hover:underline">
+                        Hesabın yok mu? Kayıt ol
+                    </button>
+                    <button x-show="authView === 'signup'" @click="authView = 'login'"
+                        class="text-left hover:underline">
+                        Zaten hesabın var mı? Giriş yap
+                    </button>
+                    <button x-show="authView === 'forgot'" @click="authView = 'login'"
+                        class="text-left hover:underline">
+                        Giriş ekranına dön
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Main Content -->
     <main class="flex-1 flex overflow-hidden max-w-[1600px] mx-auto w-full">
@@ -251,13 +414,24 @@
                         x-cloak>
                         <i class="ph ph-arrow-left text-lg"></i>
                     </button>
-                    <h2 class="text-lg font-semibold text-slate-800 dark:text-white"
-                        x-text="view === 'categories' ? 'Egzersiz Kütüphanesi' : getCategoryName(currentCategoryId)">
-                    </h2>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <h2 class="text-lg font-semibold text-slate-800 dark:text-white"
+                            x-text="view === 'categories' ? 'Egzersiz Kütüphanesi' : getCategoryName(currentCategoryId)">
+                        </h2>
+                        <span x-show="view === 'category-detail' && getCurrentCategory()"
+                            class="text-[11px] font-semibold px-2 py-0.5 rounded-full"
+                            :class="getVisibilityBadgeClass(getCurrentCategory()?.visibility)"
+                            x-text="getVisibilityLabel(getCurrentCategory()?.visibility)" x-cloak></span>
+                    </div>
                 </div>
-                <span
-                    class="text-xs font-medium px-2.5 py-1 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-full"
-                    x-text="view === 'categories' ? categories.length + ' Kategori' : getCategoryExerciseCount(currentCategoryId) + ' Hareket'"></span>
+                <div class="flex items-center gap-2">
+                    <span
+                        class="text-xs font-medium px-2.5 py-1 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-full"
+                        x-text="view === 'categories' ? categories.length + ' Kategori' : getCategoryExerciseCount(currentCategoryId) + ' Hareket'"></span>
+                    <span x-show="isAdmin() && view === 'categories' && getPendingCategories().length > 0"
+                        class="text-xs font-semibold px-2.5 py-1 bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300 rounded-full"
+                        x-text="getPendingCategories().length + ' Onay Bekleyen'" x-cloak></span>
+                </div>
             </div>
 
             <!-- Content Area -->
@@ -269,11 +443,25 @@
                     <template x-for="category in categories" :key="category.id">
                         <div class="group bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-all cursor-pointer overflow-hidden relative"
                             @click="openCategory(category.id)">
-                            <!-- Delete Button -->
-                            <button @click.stop="deleteCategory(category.id)"
-                                class="absolute top-2 right-2 z-10 w-8 h-8 bg-white/90 backdrop-blur rounded-full flex items-center justify-center text-slate-400 hover:text-danger shadow-sm opacity-0 group-hover:opacity-100 transition-opacity">
-                                <i class="ph ph-trash"></i>
-                            </button>
+                            <div class="absolute top-2 left-2 z-10">
+                                <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full"
+                                    :class="getVisibilityBadgeClass(category.visibility)"
+                                    x-text="getVisibilityLabel(category.visibility)"></span>
+                            </div>
+                            <div
+                                class="absolute top-2 right-2 z-10 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button x-show="canManageCategory(category)"
+                                    @click.stop="openEditCategory(category)"
+                                    class="px-2 py-1 text-[11px] font-semibold rounded-md bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white transition-colors"
+                                    title="Kategoriyi Düzenle">
+                                    Düzenle
+                                </button>
+                                <button x-show="canDeleteCategory(category)" x-cloak
+                                    @click.stop="deleteCategory(category.id)"
+                                    class="px-2 py-1 text-[11px] font-semibold rounded-md bg-red-50 text-danger hover:bg-danger hover:text-white transition-colors">
+                                    Sil
+                                </button>
+                            </div>
 
                             <div class="aspect-video w-full overflow-hidden bg-slate-100 dark:bg-slate-700">
                                 <img :src="category.coverImage"
@@ -294,7 +482,7 @@
                         class="col-span-full flex flex-col items-center justify-center py-12 text-slate-400 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800/50">
                         <i class="ph ph-folder-dashed text-4xl mb-3"></i>
                         <p>Henüz kategori bulunmuyor.</p>
-                        <button @click="modals.addCategory = true"
+                        <button x-show="currentUser" x-cloak @click="modals.addCategory = true"
                             class="mt-4 text-primary font-medium hover:underline">Yeni Kategori Ekle</button>
                     </div>
                 </div>
@@ -305,11 +493,20 @@
                     <template x-for="exercise in getCurrentExercises()" :key="exercise.id">
                         <div
                             class="group bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-all overflow-hidden relative">
-                            <!-- Delete Button -->
-                            <button @click.stop="deleteExercise(currentCategoryId, exercise.id)"
-                                class="absolute top-2 right-2 z-10 w-8 h-8 bg-white/90 backdrop-blur rounded-full flex items-center justify-center text-slate-400 hover:text-danger shadow-sm opacity-0 group-hover:opacity-100 transition-opacity">
-                                <i class="ph ph-trash"></i>
-                            </button>
+                            <!-- Edit/Delete Buttons -->
+                            <div class="absolute top-2 right-2 z-10 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button x-show="canManageCurrentCategory()"
+                                    @click.stop="openEditExercise(currentCategoryId, exercise)"
+                                    class="w-8 h-8 bg-white/90 backdrop-blur rounded-full flex items-center justify-center text-blue-500 hover:text-blue-600 shadow-sm"
+                                    title="Hareketi Düzenle">
+                                    <i class="ph ph-pencil-simple"></i>
+                                </button>
+                                <button x-show="canManageCurrentCategory()" x-cloak
+                                    @click.stop="deleteExercise(currentCategoryId, exercise.id)"
+                                    class="w-8 h-8 bg-white/90 backdrop-blur rounded-full flex items-center justify-center text-slate-400 hover:text-danger shadow-sm">
+                                    <i class="ph ph-trash"></i>
+                                </button>
+                            </div>
 
                             <div class="aspect-video w-full overflow-hidden bg-slate-100 dark:bg-slate-700">
                                 <img :src="exercise.imageUrl" class="w-full h-full object-cover">
@@ -364,7 +561,7 @@
 
         <!-- Right Panel: Program Builder -->
         <div
-            class="w-96 bg-white dark:bg-slate-800 border-l border-slate-200 dark:border-slate-700 flex flex-col shadow-xl z-10 print-area transition-colors duration-300">
+            class="w-[30%] min-w-[320px] bg-white dark:bg-slate-800 border-l border-slate-200 dark:border-slate-700 flex flex-col shadow-xl z-10 print-area transition-colors duration-300">
             <!-- Program Header -->
             <div class="p-4 border-b border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800">
                 <label
@@ -375,22 +572,27 @@
             </div>
 
             <!-- Program List -->
-            <div class="flex-1 overflow-y-auto p-4 space-y-2" id="program-list" @drop.prevent="handleDrop($event)"
-                @dragover.prevent>
+            <div class="flex-1 overflow-y-auto p-4 content-start grid grid-cols-3 gap-2" id="program-list"
+                @drop.prevent="handleDrop($event)" @dragover.prevent>
 
                 <template x-for="(item, index) in programExercises" :key="item.id">
                     <div draggable="true" @dragstart="handleDragStart($event, index)"
                         @dragover="handleDragOver($event, index)" @drop="handleDrop($event, index)"
                         @dragend="handleDragEnd"
-                        class="group relative bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg p-3 shadow-sm hover:border-primary/50 transition-colors cursor-move"
-                        :class="{'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800': item.type === 'title'}">
+                        class="group relative rounded-lg transition-all cursor-move border border-transparent hover:border-primary/50"
+                        :class="{
+                            'col-span-full mb-2 mt-1': item.type === 'title',
+                            'col-span-1 bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 shadow-sm': item.type !== 'title'
+                        }">
+
                         <!-- Title Item -->
                         <template x-if="item.type === 'title'">
-                            <div class="flex items-center justify-between">
-                                <h4 class="font-bold text-amber-700 dark:text-amber-500 w-full text-center"
+                            <div
+                                class="flex items-center justify-between bg-slate-100 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded p-2">
+                                <h4 class="font-bold text-slate-800 dark:text-slate-200 text-sm w-full text-left uppercase tracking-wider px-2"
                                     x-text="item.name"></h4>
                                 <button @click="removeFromProgram(item.id)"
-                                    class="text-amber-400 hover:text-amber-600 no-print p-1">
+                                    class="text-slate-400 hover:text-danger no-print p-1">
                                     <i class="ph ph-x"></i>
                                 </button>
                             </div>
@@ -398,28 +600,40 @@
 
                         <!-- Exercise Item -->
                         <template x-if="item.type !== 'title'">
-                            <div class="flex gap-3 relative pr-8">
+                            <div
+                                class="flex flex-col h-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-600">
+                                <!-- Remove Button -->
                                 <button @click.stop="removeFromProgram(item.id)"
-                                    class="absolute -top-1 -right-1 z-10 w-7 h-7 bg-white/90 dark:bg-slate-800/90 backdrop-blur rounded-full flex items-center justify-center text-slate-400 hover:text-danger shadow-sm opacity-0 group-hover:opacity-100 transition-opacity border border-slate-200 dark:border-slate-600 no-print">
-                                    <i class="ph ph-trash"></i>
+                                    class="absolute top-1 right-1 z-10 w-6 h-6 bg-white/90 dark:bg-slate-800/90 backdrop-blur rounded-full flex items-center justify-center text-slate-400 hover:text-danger shadow-sm opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <i class="ph ph-trash text-sm"></i>
                                 </button>
-                                <div class="flex-1 min-w-0">
-                                    <div class="flex justify-between items-start">
-                                        <h4 class="font-semibold text-slate-800 dark:text-white text-xl truncate pr-2"
-                                            x-text="item.name"></h4>
-                                    </div>
-                                    <div class="mt-2 flex gap-3 text-l text-slate-500 dark:text-slate-400">
-                                        <span class="bg-slate-100 dark:bg-slate-600 px-2 py-0.5 rounded">Set: <strong
-                                                class="text-slate-700 dark:text-slate-200"
-                                                x-text="item.sets"></strong></span>
-                                        <span class="bg-slate-100 dark:bg-slate-600 px-2 py-0.5 rounded">Tekrar: <strong
-                                                class="text-slate-700 dark:text-slate-200"
-                                                x-text="item.reps"></strong></span>
-                                    </div>
+
+                                <!-- Image -->
+                                <div class="aspect-video w-full bg-slate-100 dark:bg-slate-600 relative">
+                                    <img :src="item.imageUrl" class="max-h-[120px] w-full h-full object-cover">
                                 </div>
-                                <div
-                                    class="w-1/3 h-1/3 rounded-md overflow-hidden bg-slate-100 dark:bg-slate-600 flex-shrink-0 border border-slate-100 dark:border-slate-600">
-                                    <img :src="item.imageUrl" class="w-full h-full object-cover">
+
+                                <!-- Content -->
+                                <div class="p-2 flex flex-col gap-2">
+                                    <h4 class="font-bold text-slate-800 dark:text-white text-xs leading-tight line-clamp-2"
+                                        x-text="item.name"></h4>
+
+                                    <div class="flex items-center gap-1.5 mt-auto">
+                                        <div
+                                            class="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-600 rounded px-1 py-0.5 flex items-center justify-center gap-1">
+                                            <span
+                                                class="text-[9px] text-slate-500 dark:text-slate-400 uppercase font-bold">Set</span>
+                                            <input type="number" x-model.number="item.sets" @change="saveState()"
+                                                class="w-8 text-center bg-white dark:bg-slate-700 font-bold text-slate-700 dark:text-slate-200 text-xs outline-none focus:ring-1 focus:ring-primary rounded p-0.5 border border-transparent focus:border-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                                        </div>
+                                        <div
+                                            class="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-600 rounded px-1 py-0.5 flex items-center justify-center gap-1">
+                                            <span
+                                                class="text-[9px] text-slate-500 dark:text-slate-400 uppercase font-bold">TKR</span>
+                                            <input type="text" x-model="item.reps" @change="saveState()"
+                                                class="w-12 text-center bg-white dark:bg-slate-700 font-bold text-slate-700 dark:text-slate-200 text-xs outline-none focus:ring-1 focus:ring-primary rounded p-0.5 border border-transparent focus:border-primary" />
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </template>
@@ -427,12 +641,13 @@
                 </template>
 
                 <!-- Empty State -->
-                <div x-show="programExercises.length === 0" class="text-center py-12 px-4 no-print">
+                <div x-show="programExercises.length === 0"
+                    class="col-span-full text-center py-12 px-4 no-print flex flex-col items-center">
                     <div
-                        class="w-16 h-16 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-3 text-slate-300 dark:text-slate-600">
+                        class="w-16 h-16 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mb-3 text-slate-300 dark:text-slate-600">
                         <i class="ph ph-list-plus text-2xl"></i>
                     </div>
-                    <p class="text-slate-500 dark:text-slate-400 text-sm">Program boş. Kütüphaneden hareket ekleyin.</p>
+                    <p class="text-slate-500 dark:text-slate-400 text-sm">Program boş. Hareket ekleyin.</p>
                 </div>
             </div>
 
@@ -475,17 +690,33 @@
                         placeholder="Örn: Göğüs, Bacak" required>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Kapak Resmi (URL) <span class="text-red-500">*</span></label>
-                    <input type="text" x-model="forms.category.imageUrl"
-                        class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
-                        placeholder="https://...">
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Kapak Resmi (URL)
+                        <span class="text-red-500">*</span></label>
+                    <input type="text" x-model="forms.category.imageUrl" readonly
+                        class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg outline-none bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed"
+                        placeholder="Yalnızca dosya yükleyerek eklenebilir">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Veya Dosya Yükle <span class="text-red-500">*</span></label>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Veya Dosya Yükle
+                        <span class="text-red-500">*</span></label>
                     <input type="file" @change="handleFileUpload($event, 'category')" accept="image/*"
-                        class="w-full text-sm text-slate-500 dark:text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20">
-                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">* Resim yüklemek zorunludur</p>
+                        class="w-full text-sm text-slate-500 dark:text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20" :disabled="isUploading">
+                    <p x-show="isUploading" class="text-xs text-primary font-medium mt-2 flex items-center gap-1"><i class="ph ph-spinner animate-spin"></i> Görsel işleniyor ve yükleniyor, lütfen bekleyin...</p>
+                    <p x-show="!isUploading" class="text-xs text-slate-500 dark:text-slate-400 mt-1">* Resim yüklemek zorunludur</p>
                 </div>
+                <template x-if="isAdmin()">
+                    <div class="flex items-center gap-2">
+                        <input type="checkbox" id="publishCategory" x-model="forms.category.publish"
+                            class="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary/30">
+                        <label for="publishCategory" class="text-sm text-slate-600 dark:text-slate-300">Herkese
+                            yayınla</label>
+                    </div>
+                </template>
+                <template x-if="!isAdmin()">
+                    <p class="text-xs text-slate-500 dark:text-slate-400">
+                        Kategori önce özel olarak kaydedilir. İstersen sonrasında Admin'e gönderebilirsin.
+                    </p>
+                </template>
             </div>
             <div class="px-6 py-4 bg-slate-50 dark:bg-slate-900/50 flex justify-end gap-2">
                 <button @click="modals.addCategory = false"
@@ -517,16 +748,19 @@
                         placeholder="Örn: Bench Press" required>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Resim (URL) <span class="text-red-500">*</span></label>
-                    <input type="text" x-model="forms.exercise.imageUrl"
-                        class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
-                        placeholder="https://...">
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Resim (URL) <span
+                            class="text-red-500">*</span></label>
+                    <input type="text" x-model="forms.exercise.imageUrl" readonly
+                        class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg outline-none bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed"
+                        placeholder="Yalnızca dosya yükleyerek eklenebilir">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Veya Dosya Yükle <span class="text-red-500">*</span></label>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Veya Dosya Yükle
+                        <span class="text-red-500">*</span></label>
                     <input type="file" @change="handleFileUpload($event, 'exercise')" accept="image/*"
-                        class="w-full text-sm text-slate-500 dark:text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20">
-                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">* Resim yüklemek zorunludur</p>
+                        class="w-full text-sm text-slate-500 dark:text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20" :disabled="isUploading">
+                    <p x-show="isUploading" class="text-xs text-primary font-medium mt-2 flex items-center gap-1"><i class="ph ph-spinner animate-spin"></i> Görsel işleniyor ve yükleniyor, lütfen bekleyin...</p>
+                    <p x-show="!isUploading" class="text-xs text-slate-500 dark:text-slate-400 mt-1">* Resim yüklemek zorunludur</p>
                 </div>
             </div>
             <div class="px-6 py-4 bg-slate-50 dark:bg-slate-900/50 flex justify-end gap-2">
@@ -534,6 +768,108 @@
                     class="px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-sm font-medium">İptal</button>
                 <button @click="submitExercise()"
                     class="px-4 py-2 bg-success text-white rounded-lg hover:bg-green-600 text-sm font-medium">Ekle</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Category Modal -->
+    <div x-show="modals.editCategory" class="fixed inset-0 z-50 flex items-center justify-center px-4" x-cloak>
+        <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="modals.editCategory = false"></div>
+        <div
+            class="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-md relative z-10 overflow-hidden animate-fade-in-up transition-colors duration-300">
+            <div
+                class="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50">
+                <h3 class="font-semibold text-slate-800 dark:text-white">Kategoriyi Düzenle</h3>
+                <button @click="modals.editCategory = false"
+                    class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><i
+                        class="ph ph-x text-lg"></i></button>
+            </div>
+            <div class="p-6 space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Kategori
+                        Adı <span class="text-red-500">*</span></label>
+                    <input type="text" x-model="forms.editCategory.name"
+                        class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+                        placeholder="Örn: Göğüs, Bacak" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Kapak Resmi (URL)
+                        <span class="text-red-500">*</span></label>
+                    <input type="text" x-model="forms.editCategory.imageUrl" readonly
+                        class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg outline-none bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed"
+                        placeholder="Yalnızca dosya yükleyerek eklenebilir">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Veya Dosya Yükle
+                        <span class="text-red-500">*</span></label>
+                    <input type="file" @change="handleFileUpload($event, 'editCategory')" accept="image/*"
+                        class="w-full text-sm text-slate-500 dark:text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20" :disabled="isUploading">
+                    <p x-show="isUploading" class="text-xs text-primary font-medium mt-2 flex items-center gap-1"><i class="ph ph-spinner animate-spin"></i> Görsel işleniyor ve yükleniyor, lütfen bekleyin...</p>
+                </div>
+                <template x-if="isAdmin()">
+                    <div class="flex items-center gap-2">
+                        <input type="checkbox" id="publishEditCategory" x-model="forms.editCategory.publish"
+                            class="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary/30">
+                        <label for="publishEditCategory" class="text-sm text-slate-600 dark:text-slate-300">Herkese
+                            yayınla</label>
+                    </div>
+                </template>
+                <div class="pt-2 flex justify-between items-center">
+                    <button @click="deleteCategory(forms.editCategory.id)" class="text-sm text-red-500 hover:text-red-600 flex items-center gap-1 font-medium"><i class="ph ph-trash"></i> Kategoriyi Sil</button>
+                </div>
+            </div>
+            <div class="px-6 py-4 bg-slate-50 dark:bg-slate-900/50 flex justify-end gap-2">
+                <button @click="modals.editCategory = false"
+                    class="px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-sm font-medium">İptal</button>
+                <button @click="updateCategory()" :disabled="isUploading"
+                    class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-600 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed">Kaydet</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Exercise Modal -->
+    <div x-show="modals.editExercise" class="fixed inset-0 z-50 flex items-center justify-center px-4" x-cloak>
+        <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="modals.editExercise = false"></div>
+        <div
+            class="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-md relative z-10 overflow-hidden transition-colors duration-300">
+            <div
+                class="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50">
+                <h3 class="font-semibold text-slate-800 dark:text-white">Hareketi Düzenle</h3>
+                <button @click="modals.editExercise = false"
+                    class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><i
+                        class="ph ph-x text-lg"></i></button>
+            </div>
+            <div class="p-6 space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Hareket
+                        Adı <span class="text-red-500">*</span></label>
+                    <input type="text" x-model="forms.editExercise.name"
+                        class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+                        placeholder="Örn: Bench Press" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Resim (URL) <span
+                            class="text-red-500">*</span></label>
+                    <input type="text" x-model="forms.editExercise.imageUrl" readonly
+                        class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg outline-none bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed"
+                        placeholder="Yalnızca dosya yükleyerek eklenebilir">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Veya Dosya Yükle
+                        <span class="text-red-500">*</span></label>
+                    <input type="file" @change="handleFileUpload($event, 'editExercise')" accept="image/*"
+                        class="w-full text-sm text-slate-500 dark:text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20" :disabled="isUploading">
+                    <p x-show="isUploading" class="text-xs text-primary font-medium mt-2 flex items-center gap-1"><i class="ph ph-spinner animate-spin"></i> Görsel işleniyor ve yükleniyor, lütfen bekleyin...</p>
+                </div>
+                <div class="pt-2 flex justify-between items-center">
+                    <button @click="deleteExercise(forms.editExercise.catId, forms.editExercise.id)" class="text-sm text-red-500 hover:text-red-600 flex items-center gap-1 font-medium"><i class="ph ph-trash"></i> Hareketi Sil</button>
+                </div>
+            </div>
+            <div class="px-6 py-4 bg-slate-50 dark:bg-slate-900/50 flex justify-end gap-2">
+                <button @click="modals.editExercise = false"
+                    class="px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-sm font-medium">İptal</button>
+                <button @click="updateExercise()" :disabled="isUploading"
+                    class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-600 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed">Kaydet</button>
             </div>
         </div>
     </div>
@@ -551,18 +887,66 @@
                         class="ph ph-x text-lg"></i></button>
             </div>
             <div class="p-6">
-                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Program Adı</label>
-                <input type="text" x-model="programName"
-                    class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
-                    placeholder="Program adı girin...">
-                <p class="text-xs text-slate-500 dark:text-slate-400 mt-2">Bu program "Hazır Programlar" listenize
-                    eklenecektir.</p>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Program Adı</label>
+                    <input type="text" x-model="programName"
+                        class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+                        placeholder="Program adı girin...">
+                </div>
+
+                <div class="mt-4 border-t border-slate-100 dark:border-slate-700 pt-4" x-show="userProfile?.role !== 'admin'">
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Etiketler</label>
+                    <div class="flex flex-wrap gap-2 mb-3">
+                        <template x-for="tag in tags" :key="tag.id">
+                            <label class="flex items-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium cursor-pointer transition-colors"
+                                :class="programTags.includes(tag.id) ? 'bg-primary text-white shadow-sm' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'">
+                                <input type="checkbox" :value="tag.id" x-model="programTags" class="hidden">
+                                <i class="ph ph-hash"></i> <span x-text="tag.name"></span>
+                                <button type="button" @click.stop.prevent="deleteTag(tag.id)" x-show="tag.createdBy === currentUser?.uid" class="ml-1 text-red-300 hover:text-red-500 transition-colors" title="Etiketi Sil"><i class="ph ph-x"></i></button>
+                            </label>
+                        </template>
+                        <p x-show="tags.length === 0" class="text-xs text-slate-400">Henüz etiket yok.</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <input type="text" x-model="newTagName" @keydown.enter.prevent="addTag()"
+                            class="flex-1 px-3 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary/20 outline-none bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+                            placeholder="Yeni etiket oluştur...">
+                        <button @click="addTag()" type="button" class="px-3 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg text-sm font-medium transition-colors border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200">Ekle</button>
+                    </div>
+                </div>
+
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-4">Bu program "Hazır Programlar" listenize eklenecektir.</p>
+                <p class="text-xs text-amber-600 dark:text-amber-400 mt-2" x-show="!currentUser" x-cloak>
+                    Kaydetmek için giriş yapın.
+                </p>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-2"
+                    x-show="currentUser && !userProfile?.role" x-cloak>
+                    Kullanıcı rolü yükleniyor, birkaç saniye sonra tekrar deneyin.
+                </p>
             </div>
             <div class="px-6 py-4 bg-slate-50 dark:bg-slate-900/50 flex justify-end gap-2">
                 <button @click="modals.saveProgram = false"
                     class="px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-sm font-medium">İptal</button>
-                <button @click="saveCurrentProgram()"
-                    class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-600 text-sm font-medium">Kaydet</button>
+                <button x-show="!currentUser" @click="authView = 'login'"
+                    class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-600 text-sm font-medium" x-cloak>
+                    Giriş Yap
+                </button>
+                <button x-show="currentUser && !userProfile?.role" disabled
+                    class="px-4 py-2 bg-slate-200 text-slate-500 rounded-lg text-sm font-medium cursor-not-allowed" x-cloak>
+                    Rol Yükleniyor...
+                </button>
+                <button x-show="userProfile?.role === 'trainer'" @click="saveCurrentProgram('trainer-private')"
+                    class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-600 text-sm font-medium">
+                    Kaydet
+                </button>
+                <button x-show="userProfile?.role === 'admin'" @click="saveCurrentProgram('admin-private')"
+                    class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-600 text-sm font-medium">
+                    Kişisel Kaydet
+                </button>
+                <button x-show="userProfile?.role === 'admin'" @click="saveCurrentProgram('admin-published')"
+                    class="px-4 py-2 bg-success text-white rounded-lg hover:bg-green-600 text-sm font-medium">
+                    Herkese Yayınla
+                </button>
             </div>
         </div>
     </div>
@@ -572,40 +956,56 @@
         <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="modals.savedPrograms = false"></div>
         <div
             class="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-2xl relative z-10 overflow-hidden flex flex-col max-h-[80vh] transition-colors duration-300">
-            <div
-                class="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50">
+            <div class="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50">
                 <h3 class="font-semibold text-slate-800 dark:text-white">Hazır Programlar</h3>
                 <button @click="modals.savedPrograms = false"
                     class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><i
                         class="ph ph-x text-lg"></i></button>
             </div>
+            
+            <!-- Tag Filter -->
+            <div class="px-6 py-3 border-b border-slate-100 dark:border-slate-700 flex gap-2 overflow-x-auto items-center bg-white dark:bg-slate-800 shrink-0">
+                <span class="text-xs font-semibold text-slate-500 uppercase mr-2">Filtre:</span>
+                <button @click="selectedTagFilter = ''" class="px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors" :class="selectedTagFilter === '' ? 'bg-primary text-white shadow-sm' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'">Tümü</button>
+                <button @click="selectedTagFilter = 'admin'" class="px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors flex items-center gap-1" :class="selectedTagFilter === 'admin' ? 'bg-amber-500 text-white shadow-sm' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'">
+                    <i class="ph ph-shield-check"></i> <span>Admin</span>
+                </button>
+                <template x-for="tag in tags" :key="tag.id">
+                    <button @click="selectedTagFilter = selectedTagFilter === tag.id ? '' : tag.id" class="px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors flex items-center gap-1" :class="selectedTagFilter === tag.id ? 'bg-primary text-white shadow-sm' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'">
+                        <i class="ph ph-hash"></i> <span x-text="tag.name"></span>
+                    </button>
+                </template>
+            </div>
+            
             <div class="p-0 overflow-y-auto flex-1">
-                <template x-if="savedPrograms.length === 0">
+                <template x-if="programs.length === 0">
                     <div class="p-8 text-center text-slate-400">
                         <i class="ph ph-folder-dashed text-4xl mb-2"></i>
                         <p>Henüz kayıtlı program yok.</p>
                     </div>
                 </template>
-                <div class="divide-y divide-slate-100 dark:divide-slate-700">
-                    <template x-for="program in savedPrograms" :key="program.id">
-                        <div
-                            class="p-4 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center justify-between group">
-                            <div>
-                                <h4 class="font-semibold text-slate-800 dark:text-white" x-text="program.name"></h4>
-                                <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                                    <span x-text="program.createdAt"></span> •
-                                    <span x-text="program.exercises.length + ' Hareket'"></span>
-                                </p>
+                <div class="divide-y divide-slate-100 dark:divide-slate-700" x-show="programs.length > 0">
+                    <template x-for="program in getAllFilteredPrograms()" :key="program.id">
+                        <div class="flex items-center justify-between p-3 hover:bg-slate-50 dark:hover:bg-slate-700/50 border-b border-slate-100 dark:border-slate-800 last:border-0 group transition-colors">
+                            <div class="flex items-center gap-3 overflow-hidden flex-1">
+                                <div class="truncate font-medium text-sm text-slate-700 dark:text-slate-200 shrink-0 max-w-[200px]" x-text="program.name"></div>
+                                <div class="flex items-center gap-2 text-[11px] text-slate-400 truncate">
+                                    <span x-text="formatDate(program.createdAt)"></span> • 
+                                    <span x-text="program.exercises.length + ' hkt'"></span>
+                                    <template x-if="program.visibility === 'admin-published' || program.ownerRole === 'admin'">
+                                        <span class="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 font-semibold ml-1">Admin</span>
+                                    </template>
+                                    <template x-for="ptag in getProgramTags(program.tags)" :key="ptag.id">
+                                        <span class="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-medium">
+                                            <i class="ph ph-hash"></i> <span x-text="ptag.name"></span>
+                                        </span>
+                                    </template>
+                                </div>
                             </div>
-                            <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button @click="loadProgram(program.id)"
-                                    class="px-3 py-1.5 bg-primary/10 text-primary rounded-lg text-sm font-medium hover:bg-primary hover:text-white transition-colors">
-                                    Yükle
-                                </button>
-                                <button @click="deleteSavedProgram(program.id)"
-                                    class="px-3 py-1.5 bg-red-50 text-danger rounded-lg text-sm font-medium hover:bg-danger hover:text-white transition-colors">
-                                    Sil
-                                </button>
+                            <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-2">
+                                <button x-show="userProfile?.role === 'admin' && program.visibility === 'trainer-submitted'" @click="publishProgram(program.id)" class="px-2 py-1 bg-success/10 text-success rounded text-xs font-medium hover:bg-success hover:text-white transition-colors">Yayınla</button>
+                                <button @click="loadProgram(program.id)" class="px-2 py-1 bg-primary/10 text-primary rounded text-xs font-medium hover:bg-primary hover:text-white transition-colors">İncele / Yükle</button>
+                                <button x-show="userProfile?.role === 'admin' || program.ownerUid === currentUser?.uid" @click="deleteProgram(program.id)" class="px-2 py-1 bg-red-50 text-danger rounded text-xs font-medium hover:bg-danger hover:text-white transition-colors">Sil</button>
                             </div>
                         </div>
                     </template>
@@ -621,13 +1021,49 @@
 
     <!-- Application Logic -->
     <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyCyHqe4gP0Lt0naLPr02SJnizkLNGWnHo4",
+            authDomain: "fitnessapp-3508e.firebaseapp.com",
+            projectId: "fitnessapp-3508e",
+            storageBucket: "fitnessapp-3508e.firebasestorage.app",
+            messagingSenderId: "718397386123",
+            appId: "1:718397386123:web:539d6b21c1661d78f7d38e",
+            measurementId: "G-0P85NDL5X7"
+        };
+        const ADMIN_EMAILS = ['oguzgokyar@gmail.com'];
+
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        const storage = firebase.storage();
+
         function fitnessApp() {
             return {
                 // State
+                isUploading: false,
                 categories: [],
+                categoriesMine: [],
+                categoriesPublished: [],
                 programExercises: [],
-                savedPrograms: [],
+                programs: [],
+                programsMine: [],
+                programsPublished: [],
                 programName: '',
+                currentUser: null,
+                userProfile: null,
+                authReady: false,
+                authView: 'login',
+                authError: '',
+                authNotice: '',
+                authForm: {
+                    name: '',
+                    email: '',
+                    password: '',
+                    inviteCode: ''
+                },
                 view: 'categories', // 'categories' or 'category-detail'
                 currentCategoryId: null,
                 darkMode: false,
@@ -636,21 +1072,38 @@
                 modals: {
                     addCategory: false,
                     addExercise: false,
+                    editCategory: false,
+                    editExercise: false,
                     saveProgram: false,
                     savedPrograms: false
                 },
                 forms: {
-                    category: { name: '', imageUrl: '' },
-                    exercise: { name: '', imageUrl: '' }
+                    category: { name: '', imageUrl: '', publish: true },
+                    exercise: { name: '', imageUrl: '' },
+                    editCategory: { id: '', name: '', imageUrl: '', publish: false },
+                    editExercise: { catId: '', id: '', name: '', imageUrl: '' }
                 },
+                tags: [],
+                selectedTagFilter: '',
+                programTags: [],
+                newTagName: '',
                 draggedItemIndex: null,
+                unsubscribePrograms: [],
+                unsubscribeCategories: [],
+                unsubscribeTags: [],
+                categoriesLoadedMine: false,
+                categoriesLoadedPublished: false,
+                categoriesLoadedAll: false,
+                categorySyncError: false,
+                isMigratingCategories: false,
 
                 // Initialization
                 initApp() {
+                    this.initAuth();
+
                     // Load from localStorage
-                    this.categories = JSON.parse(localStorage.getItem('categories')) || [];
+                    this.categories = this.getLocalCategoriesCache();
                     this.programExercises = JSON.parse(localStorage.getItem('programExercises')) || [];
-                    this.savedPrograms = JSON.parse(localStorage.getItem('savedPrograms')) || [];
                     this.programName = localStorage.getItem('programName') || '';
 
                     const pageState = JSON.parse(localStorage.getItem('pageState')) || {};
@@ -671,7 +1124,6 @@
                     // Watch for changes to save state
                     this.$watch('categories', () => this.saveState());
                     this.$watch('programExercises', () => this.saveState());
-                    this.$watch('savedPrograms', () => this.saveState());
                     this.$watch('programName', () => {
                         localStorage.setItem('programName', this.programName);
                     });
@@ -688,14 +1140,294 @@
                     });
                 },
 
+                initAuth() {
+                    auth.onAuthStateChanged(async (user) => {
+                        this.authReady = true;
+                        this.currentUser = user || null;
+                        this.authError = '';
+                        this.authNotice = this.authView === 'logout' ? 'Başarıyla çıkış yaptınız.' : '';
+
+                        if (!user) {
+                            this.userProfile = null;
+                            this.categories = this.getLocalCategoriesCache();
+                            this.categoriesMine = [];
+                            this.categoriesPublished = [];
+                            this.programs = [];
+                            this.programsMine = [];
+                            this.programsPublished = [];
+                            this.categoriesLoadedMine = false;
+                            this.categoriesLoadedPublished = false;
+                            this.categoriesLoadedAll = false;
+                            this.categorySyncError = false;
+                            this.clearCategoryListeners();
+                            this.clearProgramListeners();
+                            this.clearTagListeners();
+                            return;
+                        }
+
+                        this.categories = [];
+                        this.categoriesMine = [];
+                        this.categoriesPublished = [];
+                        this.categoriesLoadedMine = false;
+                        this.categoriesLoadedPublished = false;
+                        this.categoriesLoadedAll = false;
+                        this.categorySyncError = false;
+                        this.authNotice = '';
+                        this.authView = 'login';
+                        this.startCategoryListeners();
+                        await this.ensureUserProfile(user);
+                        this.startProgramListeners();
+                        this.startTagListeners();
+                    });
+                },
+
+                async ensureUserProfile(user) {
+                    const userRef = db.collection('users').doc(user.uid);
+
+                    try {
+                        let userSnap = await userRef.get();
+                        const name = this.authForm.name || user.displayName || user.email?.split('@')[0] || 'Kullanıcı';
+                        const defaultRole = ADMIN_EMAILS.includes(user.email) ? 'admin' : 'trainer';
+
+                        if (!userSnap.exists) {
+                            await userRef.set({
+                                email: user.email,
+                                name: name,
+                                role: defaultRole,
+                                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                            });
+                        } else if (!userSnap.data()?.role) {
+                            await userRef.update({
+                                role: defaultRole,
+                                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                            });
+                        } else if (defaultRole === 'admin' && userSnap.data()?.role !== 'admin') {
+                            await userRef.update({
+                                role: 'admin',
+                                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                            });
+                        }
+
+                        userSnap = await userRef.get();
+                        this.userProfile = userSnap.data();
+                    } catch (err) {
+                        this.userProfile = {
+                            email: user.email || '',
+                            name: user.displayName || user.email?.split('@')[0] || 'Kullanıcı',
+                            role: 'trainer'
+                        };
+                        this.authError = 'Kullanıcı rolü okunamadı. Lütfen tekrar giriş yapın.';
+                    }
+                },
+
+                async login() {
+                    this.authError = '';
+                    this.authNotice = '';
+                    const email = (this.authForm.email || '').trim();
+                    const password = this.authForm.password || '';
+                    if (!email || !password) {
+                        this.authError = 'E-posta ve şifre gerekli.';
+                        return;
+                    }
+                    try {
+                        await auth.signInWithEmailAndPassword(email, password);
+                        this.authForm.password = '';
+                    } catch (err) {
+                        this.authError = this.formatAuthError(err);
+                    }
+                },
+
+                async signup() {
+                    this.authError = '';
+                    this.authNotice = '';
+
+                    if (this.authForm.inviteCode !== 'SBFİTNESS') {
+                        this.authError = 'Geçersiz veya eksik davet kodu! Kayıt olmak için yetkiniz yok.';
+                        return;
+                    }
+
+                    if (!this.authForm.name) {
+                        this.authError = 'Ad Soyad gerekli.';
+                        return;
+                    }
+                    const email = (this.authForm.email || '').trim();
+                    const password = this.authForm.password || '';
+                    if (!email || !password) {
+                        this.authError = 'E-posta ve şifre gerekli.';
+                        return;
+                    }
+
+                    try {
+                        await auth.createUserWithEmailAndPassword(email, password);
+                        this.authForm.password = '';
+                    } catch (err) {
+                        this.authError = this.formatAuthError(err);
+                    }
+                },
+
+                async resetPassword() {
+                    this.authError = '';
+                    this.authNotice = '';
+                    const email = (this.authForm.email || '').trim();
+                    if (!email) {
+                        this.authError = 'E-posta gerekli.';
+                        return;
+                    }
+                    try {
+                        await auth.sendPasswordResetEmail(email);
+                        this.authNotice = 'Şifre sıfırlama bağlantısı e-posta adresinize gönderildi.';
+                        this.authView = 'login';
+                    } catch (err) {
+                        this.authError = this.formatAuthError(err);
+                    }
+                },
+
+                async logout() {
+                    await auth.signOut();
+                    this.authView = 'logout';
+                    this.authNotice = 'Başarıyla çıkış yaptınız.';
+                },
+
+                setAuthView(view) {
+                    this.authView = view;
+                    this.authError = '';
+                    this.authNotice = '';
+                },
+
+                formatAuthError(err) {
+                    switch (err.code) {
+                        case 'auth/email-already-in-use':
+                            return 'Bu e-posta zaten kullanılıyor.';
+                        case 'auth/weak-password':
+                            return 'Şifre en az 6 karakter olmalı.';
+                        case 'auth/invalid-email':
+                            return 'Geçerli bir e-posta girin.';
+                        case 'auth/user-not-found':
+                        case 'auth/wrong-password':
+                        case 'auth/invalid-login-credentials':
+                            return 'E-posta veya şifre yanlış.';
+                        default:
+                            return err.message || 'Giriş hatası.';
+                    }
+                },
+
+                isAdmin() {
+                    if (this.userProfile?.role) {
+                        return this.userProfile.role === 'admin';
+                    }
+                    return !!this.currentUser && ADMIN_EMAILS.includes(this.currentUser.email);
+                },
+
+                generateId() {
+                    if (window.crypto?.randomUUID) {
+                        return window.crypto.randomUUID();
+                    }
+                    return `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
+                },
+
+                getVisibilityLabel(visibility) {
+                    switch (visibility) {
+                        case 'trainer-private':
+                        case 'admin-private':
+                            return 'Özel';
+                        case 'trainer-submitted':
+                            return 'Onay Bekliyor';
+                        case 'admin-published':
+                            return 'Yayında';
+                        default:
+                            return 'Yayında';
+                    }
+                },
+
+                getVisibilityBadgeClass(visibility) {
+                    switch (visibility) {
+                        case 'trainer-private':
+                        case 'admin-private':
+                            return 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200';
+                        case 'trainer-submitted':
+                            return 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300';
+                        case 'admin-published':
+                        default:
+                            return 'bg-success/10 text-success dark:bg-success/20 dark:text-success';
+                    }
+                },
+
+                normalizeExercise(ex) {
+                    return {
+                        id: (ex?.id || this.generateId()).toString(),
+                        name: ex?.name || '',
+                        imageUrl: ex?.imageUrl || '',
+                        sets: Number.isFinite(ex?.sets) ? ex.sets : 3,
+                        reps: Number.isFinite(ex?.reps) ? ex.reps : 10
+                    };
+                },
+
+                normalizeCategoryDoc(doc) {
+                    const data = doc.data() || {};
+                    return {
+                        id: doc.id,
+                        name: data.name || 'Kategori',
+                        coverImage: data.coverImage || '',
+                        exercises: Array.isArray(data.exercises) ? data.exercises : [],
+                        visibility: data.visibility || 'admin-published',
+                        ownerUid: data.ownerUid || data.createdBy || '',
+                        ownerEmail: data.ownerEmail || data.createdByEmail || '',
+                        ownerName: data.ownerName || '',
+                        ownerRole: data.ownerRole || '',
+                        createdAt: data.createdAt,
+                        updatedAt: data.updatedAt,
+                        submittedAt: data.submittedAt,
+                        approvedAt: data.approvedAt,
+                        approvedBy: data.approvedBy || ''
+                    };
+                },
+
+                canManageCategory(category) {
+                    if (!category || !this.currentUser) return false;
+                    if (this.isAdmin()) return true;
+                    const isOwner = category.ownerUid === this.currentUser.uid || category.createdBy === this.currentUser.uid;
+                    return isOwner && category.visibility !== 'admin-published';
+                },
+
+                canManageCurrentCategory() {
+                    return this.canManageCategory(this.getCurrentCategory());
+                },
+
+                canDeleteCategory(category) {
+                    if (!category || !this.currentUser) return false;
+                    if (this.isAdmin()) return true;
+                    const isOwner = category.ownerUid === this.currentUser.uid || category.createdBy === this.currentUser.uid;
+                    return isOwner && category.visibility !== 'admin-published';
+                },
+
+
+
+                canDeleteProgram(program) {
+                    if (!program || !this.currentUser) return false;
+                    if (this.isAdmin()) return true;
+                    return program.ownerUid === this.currentUser.uid && program.visibility !== 'admin-published';
+                },
+
+
+
+                getPendingCategories() {
+                    return this.categories.filter(cat => cat.visibility === 'trainer-submitted');
+                },
+
+                getCurrentCategory() {
+                    return this.categories.find(c => c.id === this.currentCategoryId) || null;
+                },
+
                 toggleTheme() {
                     this.darkMode = !this.darkMode;
                 },
 
                 saveState() {
-                    localStorage.setItem('categories', JSON.stringify(this.categories));
+                    if (!this.currentUser) {
+                        localStorage.setItem('categories', JSON.stringify(this.categories));
+                    }
                     localStorage.setItem('programExercises', JSON.stringify(this.programExercises));
-                    localStorage.setItem('savedPrograms', JSON.stringify(this.savedPrograms));
                 },
 
                 savePageState() {
@@ -703,6 +1435,233 @@
                         view: this.view,
                         currentCategoryId: this.currentCategoryId
                     }));
+                },
+
+                clearProgramListeners() {
+                    this.unsubscribePrograms.forEach(unsub => unsub());
+                    this.unsubscribePrograms = [];
+                },
+
+                clearCategoryListeners() {
+                    this.unsubscribeCategories.forEach(unsub => unsub());
+                    this.unsubscribeCategories = [];
+                },
+
+                clearTagListeners() {
+                    this.unsubscribeTags.forEach(unsub => unsub());
+                    this.unsubscribeTags = [];
+                    this.tags = [];
+                },
+
+                startTagListeners() {
+                    this.clearTagListeners();
+                    if (!this.currentUser) return;
+                    
+                    const unsub = db.collection('tags').orderBy('createdAt', 'asc').onSnapshot((snapshot) => {
+                        const allTags = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                        if (this.isAdmin()) {
+                            this.tags = allTags;
+                        } else {
+                            this.tags = allTags.filter(t => t.isGlobal || t.createdBy === this.currentUser.uid);
+                        }
+                    }, (err) => {
+                        console.error('Etiketler yüklenemedi:', err);
+                    });
+
+                    this.unsubscribeTags.push(unsub);
+                },
+
+                async addTag() {
+                    if (!this.newTagName.trim()) return;
+                    if (!this.currentUser) return;
+                    
+                    try {
+                        await db.collection('tags').add({
+                            name: this.newTagName.trim(),
+                            createdBy: this.currentUser.uid,
+                            isGlobal: this.isAdmin(),
+                            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                        });
+                        this.newTagName = '';
+                    } catch(err) {
+                        console.error(err);
+                        alert('Etiket eklenemedi.');
+                    }
+                },
+
+                async deleteTag(id) {
+                    if (!confirm('Bu etiketi silmek istediğinize emin misiniz?')) return;
+                    try {
+                        await db.collection('tags').doc(id).delete();
+                    } catch(err) {
+                        console.error(err);
+                        alert('Etiket silinemedi.');
+                    }
+                },
+
+                getLocalCategoriesCache() {
+                    return JSON.parse(localStorage.getItem('categories')) || [];
+                },
+
+                async migrateLocalCategoriesToCloud(localCategories) {
+                    if (!this.currentUser || this.isMigratingCategories) return;
+                    if (!Array.isArray(localCategories) || localCategories.length === 0) return;
+                    if (!this.isAdmin()) return;
+
+                    this.isMigratingCategories = true;
+                    try {
+                        const batch = db.batch();
+                        localCategories.forEach((cat) => {
+                            const catId = (cat?.id || Date.now().toString()).toString();
+                            const exercises = Array.isArray(cat?.exercises)
+                                ? cat.exercises.map((ex) => ({
+                                    id: (ex?.id || Date.now().toString()).toString(),
+                                    name: ex?.name || '',
+                                    imageUrl: ex?.imageUrl || '',
+                                    sets: Number.isFinite(ex?.sets) ? ex.sets : 3,
+                                    reps: Number.isFinite(ex?.reps) ? ex.reps : 10
+                                }))
+                                : [];
+
+                            batch.set(db.collection('categories').doc(catId), {
+                                name: cat?.name || 'Kategori',
+                                coverImage: cat?.coverImage || '',
+                                exercises: exercises,
+                                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                                createdBy: this.currentUser.uid,
+                                createdByEmail: this.currentUser.email || ''
+                            }, { merge: true });
+                        });
+                        await batch.commit();
+                        localStorage.setItem('categoriesMigratedToCloud', 'true');
+                    } catch (err) {
+                        console.error(err);
+                        alert('Kategoriler buluta taşınamadı.');
+                    } finally {
+                        this.isMigratingCategories = false;
+                    }
+                },
+
+                startCategoryListeners() {
+                    this.clearCategoryListeners();
+                    if (!this.currentUser) return;
+
+                    const unsub = db.collection('categories')
+                        .orderBy('createdAt', 'asc')
+                        .onSnapshot(async (snapshot) => {
+                            const docs = snapshot.docs.map(doc => {
+                                const data = doc.data() || {};
+                                return {
+                                    id: doc.id,
+                                    ...data,
+                                    visibility: data.visibility || 'admin-published',
+                                    exercises: Array.isArray(data.exercises) ? data.exercises : []
+                                };
+                            });
+
+                            let finalDocs = docs;
+                            if (!this.isAdmin()) {
+                                finalDocs = docs.filter(c => c.visibility === 'admin-published' || c.createdBy === this.currentUser.uid);
+                            }
+
+                            const localCategories = this.getLocalCategoriesCache();
+                            const migrated = localStorage.getItem('categoriesMigratedToCloud') === 'true';
+                            if (finalDocs.length === 0 && localCategories.length > 0 && !migrated && !this.isMigratingCategories) {
+                                if (this.isAdmin()) {
+                                    await this.migrateLocalCategoriesToCloud(localCategories);
+                                }
+                            }
+
+                            this.categories = finalDocs;
+                        }, (err) => {
+                            console.error(err);
+                            alert('Kütüphane yüklenemedi: ' + err.message);
+                        });
+                    
+                    this.unsubscribeCategories.push(unsub);
+                },
+
+                startProgramListeners() {
+                    this.clearProgramListeners();
+
+                    if (!this.currentUser) return;
+
+                    if (this.userProfile?.role === 'admin') {
+                        const unsub = db.collection('programs').orderBy('updatedAt', 'desc')
+                            .onSnapshot((snapshot) => {
+                                this.programs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                            });
+                        this.unsubscribePrograms.push(unsub);
+                        return;
+                    }
+
+                    const publishedQuery = db.collection('programs').where('visibility', '==', 'admin-published');
+                    const mineQuery = db.collection('programs').where('ownerUid', '==', this.currentUser.uid);
+
+                    const unsubPublished = publishedQuery.onSnapshot((snapshot) => {
+                        this.programsPublished = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                        this.mergePrograms();
+                    });
+
+                    const unsubMine = mineQuery.onSnapshot((snapshot) => {
+                        this.programsMine = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                        this.mergePrograms();
+                    });
+
+                    this.unsubscribePrograms.push(unsubPublished, unsubMine);
+                },
+
+                mergePrograms() {
+                    const map = new Map();
+                    [...this.programsPublished, ...this.programsMine].forEach(program => {
+                        map.set(program.id, program);
+                    });
+                    this.programs = Array.from(map.values()).sort((a, b) => {
+                        const aTime = a.updatedAt?.toDate ? a.updatedAt.toDate().getTime() : 0;
+                        const bTime = b.updatedAt?.toDate ? b.updatedAt.toDate().getTime() : 0;
+                        return bTime - aTime;
+                    });
+                },
+
+                getProgramTags(tagIds) {
+                    if (!tagIds || !Array.isArray(tagIds)) return [];
+                    return this.tags.filter(t => tagIds.includes(t.id));
+                },
+
+                getAllFilteredPrograms() {
+                    if (!this.currentUser) return [];
+                    const role = this.userProfile?.role;
+                    let filtered = [];
+
+                    if (role === 'admin') {
+                        filtered = this.programs;
+                        if (this.selectedTagFilter) {
+                            if (this.selectedTagFilter === 'admin') {
+                                filtered = filtered.filter(p => p.visibility === 'admin-published' || p.ownerRole === 'admin');
+                            } else {
+                                filtered = filtered.filter(p => p.tags && p.tags.includes(this.selectedTagFilter));
+                            }
+                        }
+                    } else {
+                        if (this.selectedTagFilter === 'admin') {
+                            filtered = this.programs.filter(p => p.visibility === 'admin-published');
+                        } else {
+                            filtered = this.programs.filter(p => p.ownerUid === this.currentUser.uid);
+                            if (this.selectedTagFilter) {
+                                filtered = filtered.filter(p => p.tags && p.tags.includes(this.selectedTagFilter));
+                            }
+                        }
+                    }
+                    return filtered;
+                },
+
+                formatDate(value) {
+                    if (!value) return '';
+                    if (value.toDate) {
+                        return value.toDate().toLocaleDateString('tr-TR');
+                    }
+                    return value;
                 },
 
                 // Category Logic
@@ -729,21 +1688,39 @@
                 async submitCategory() {
                     if (!this.forms.category.name) return alert('Kategori adı gerekli!');
                     if (!this.forms.category.imageUrl) return alert('Kategori için kapak resmi zorunludur! Lütfen bir resim yükleyin veya URL girin.');
+                    if (!this.currentUser) return alert('Lütfen giriş yapın.');
 
-                    const newCategory = {
-                        id: Date.now().toString(),
-                        name: this.forms.category.name,
-                        coverImage: this.forms.category.imageUrl,
-                        exercises: []
-                    };
+                    const newCategoryId = Date.now().toString();
+                    const isPublish = this.isAdmin() && this.forms.category.publish;
 
-                    this.categories.push(newCategory);
-                    this.forms.category = { name: '', imageUrl: '' };
-                    this.modals.addCategory = false;
+                    try {
+                        await db.collection('categories').doc(newCategoryId).set({
+                            name: this.forms.category.name,
+                            coverImage: this.forms.category.imageUrl,
+                            exercises: [],
+                            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                            createdBy: this.currentUser.uid,
+                            createdByEmail: this.currentUser.email || '',
+                            visibility: isPublish ? 'admin-published' : 'private'
+                        });
+
+                        this.forms.category = { name: '', imageUrl: '', publish: true };
+                        this.modals.addCategory = false;
+                    } catch (err) {
+                        console.error(err);
+                        alert('Kategori kaydedilemedi.');
+                    }
                 },
 
                 deleteCategory(id) {
                     if (confirm('Bu kategoriyi silmek istediğinize emin misiniz?')) {
+                        if (!this.currentUser) return alert('Lütfen giriş yapın.');
+                        const category = this.categories.find(c => c.id === id);
+                        if (!category) return;
+                        if (!this.isAdmin() && category.createdBy !== this.currentUser.uid) return alert('Kategori silmek için admin yetkisi veya sahibi olmanız gerekli.');
+
+                        const previousCategories = [...this.categories];
                         this.categories = this.categories.filter(c => c.id !== id);
                         // Also remove exercises from program that belonged to this category
                         this.programExercises = this.programExercises.filter(ex => ex.categoryId !== id);
@@ -751,6 +1728,49 @@
                             this.view = 'categories';
                             this.currentCategoryId = null;
                         }
+                        this.modals.editCategory = false;
+
+                        db.collection('categories').doc(id).delete().catch((err) => {
+                            console.error(err);
+                            this.categories = previousCategories;
+                            alert('Kategori silinemedi.');
+                        });
+                    }
+                },
+
+                openEditCategory(category) {
+                    if (!this.isAdmin() && category.createdBy !== this.currentUser?.uid) return alert('Bu kategoriyi düzenleme yetkiniz yok.');
+                    this.forms.editCategory = {
+                        id: category.id,
+                        name: category.name,
+                        imageUrl: category.coverImage,
+                        publish: category.visibility === 'admin-published'
+                    };
+                    this.modals.editCategory = true;
+                },
+
+                async updateCategory() {
+                    const id = this.forms.editCategory.id;
+                    if (!id) return;
+                    if (!this.forms.editCategory.name) return alert('Kategori adı gerekli!');
+                    if (!this.forms.editCategory.imageUrl) return alert('Kategori için kapak resmi zorunludur!');
+                    
+                    const category = this.categories.find(c => c.id === id);
+                    if (!category) return;
+
+                    const isPublish = this.isAdmin() && this.forms.editCategory.publish;
+
+                    try {
+                        await db.collection('categories').doc(id).update({
+                            name: this.forms.editCategory.name,
+                            coverImage: this.forms.editCategory.imageUrl,
+                            visibility: isPublish ? 'admin-published' : category.visibility,
+                            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                        });
+                        this.modals.editCategory = false;
+                    } catch (err) {
+                        console.error(err);
+                        alert('Kategori güncellenemedi.');
                     }
                 },
 
@@ -758,9 +1778,12 @@
                 async submitExercise() {
                     if (!this.forms.exercise.name) return alert('Hareket adı gerekli!');
                     if (!this.forms.exercise.imageUrl) return alert('Hareket için resim zorunludur! Lütfen bir resim yükleyin veya URL girin.');
+                    if (!this.currentUser) return alert('Lütfen giriş yapın.');
 
                     const category = this.categories.find(c => c.id === this.currentCategoryId);
                     if (!category) return;
+
+                    if (!this.isAdmin() && category.createdBy !== this.currentUser.uid) return alert('Hareket eklemek için admin yetkisi veya kategori sahibi olmanız gerekli.');
 
                     const newExercise = {
                         id: Date.now().toString(),
@@ -770,19 +1793,91 @@
                         reps: 10
                     };
 
-                    category.exercises.push(newExercise);
-                    this.forms.exercise = { name: '', imageUrl: '' };
-                    this.modals.addExercise = false;
+                    const previousExercises = Array.isArray(category.exercises) ? [...category.exercises] : [];
+                    const updatedExercises = [...previousExercises, newExercise];
+                    category.exercises = updatedExercises;
+
+                    try {
+                        await db.collection('categories').doc(category.id).update({
+                            exercises: updatedExercises,
+                            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                        });
+                        this.forms.exercise = { name: '', imageUrl: '' };
+                        this.modals.addExercise = false;
+                    } catch (err) {
+                        console.error(err);
+                        category.exercises = previousExercises;
+                        alert('Hareket kaydedilemedi.');
+                    }
                 },
 
                 deleteExercise(catId, exId) {
                     if (confirm('Bu hareketi silmek istediğinize emin misiniz?')) {
                         const category = this.categories.find(c => c.id === catId);
                         if (category) {
-                            category.exercises = category.exercises.filter(ex => ex.id !== exId);
+                            if (!this.currentUser) return alert('Lütfen giriş yapın.');
+                            if (!this.isAdmin() && category.createdBy !== this.currentUser.uid) return alert('Hareket silmek için admin yetkisi veya kategori sahibi olmanız gerekli.');
+
+                            const previousExercises = Array.isArray(category.exercises) ? [...category.exercises] : [];
+                            category.exercises = previousExercises.filter(ex => ex.id !== exId);
                             // Remove from program
                             this.programExercises = this.programExercises.filter(ex => ex.libraryId !== exId);
+                            this.modals.editExercise = false;
+
+                            db.collection('categories').doc(category.id).update({
+                                exercises: category.exercises,
+                                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                            }).catch((err) => {
+                                console.error(err);
+                                category.exercises = previousExercises;
+                                alert('Hareket silinemedi.');
+                            });
                         }
+                    }
+                },
+
+                openEditExercise(catId, exercise) {
+                    const category = this.categories.find(c => c.id === catId);
+                    if (!category) return;
+                    if (!this.isAdmin() && category.createdBy !== this.currentUser?.uid) return alert('Bu hareketi düzenleme yetkiniz yok.');
+                    
+                    this.forms.editExercise = {
+                        catId: catId,
+                        id: exercise.id,
+                        name: exercise.name,
+                        imageUrl: exercise.imageUrl
+                    };
+                    this.modals.editExercise = true;
+                },
+
+                async updateExercise() {
+                    const { catId, id, name, imageUrl } = this.forms.editExercise;
+                    if (!name) return alert('Hareket adı gerekli!');
+                    if (!imageUrl) return alert('Resim (URL) zorunludur!');
+
+                    const category = this.categories.find(c => c.id === catId);
+                    if (!category) return;
+
+                    const previousExercises = Array.isArray(category.exercises) ? [...category.exercises] : [];
+                    const updatedExercises = previousExercises.map(ex => {
+                        if (ex.id === id) {
+                            return { ...ex, name, imageUrl };
+                        }
+                        return ex;
+                    });
+
+                    category.exercises = updatedExercises;
+
+                    try {
+                        await db.collection('categories').doc(catId).update({
+                            exercises: updatedExercises,
+                            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                        });
+                        this.modals.editExercise = false;
+                    } catch (err) {
+                        console.error(err);
+                        category.exercises = previousExercises;
+                        alert('Hareket güncellenemedi.');
                     }
                 },
 
@@ -855,25 +1950,46 @@
                 },
 
                 // Saved Programs
-                saveCurrentProgram() {
+                async saveCurrentProgram(visibility) {
+                    if (!this.currentUser) return alert('Lütfen giriş yapın.');
                     if (!this.programName) return alert('Lütfen program adı girin.');
                     if (this.programExercises.length === 0) return alert('Program boş!');
 
-                    this.savedPrograms.push({
-                        id: Date.now().toString(),
+                    const role = this.userProfile?.role;
+                    if (!visibility) {
+                        visibility = role === 'admin' ? 'admin-published' : 'trainer-private';
+                    }
+                    if ((visibility === 'trainer-private' || visibility === 'trainer-submitted') && role !== 'trainer') {
+                        return alert('Bu işlem sadece eğitmenler için uygundur.');
+                    }
+                    if (visibility === 'admin-published' && role !== 'admin') {
+                        return alert('Bu işlem sadece yöneticiler için uygundur.');
+                    }
+
+                    const program = {
                         name: this.programName,
-                        createdAt: new Date().toLocaleDateString('tr-TR'),
-                        exercises: JSON.parse(JSON.stringify(this.programExercises))
-                    });
+                        exercises: JSON.parse(JSON.stringify(this.programExercises)),
+                        tags: [...this.programTags],
+                        visibility: visibility,
+                        ownerUid: this.currentUser.uid,
+                        ownerEmail: this.currentUser.email || '',
+                        ownerName: this.userProfile?.name || '',
+                        ownerRole: this.userProfile?.role || '',
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    };
+
+                    await db.collection('programs').add(program);
 
                     this.modals.saveProgram = false;
+                    this.programTags = []; // Reset tags after saving
                     alert('Program kaydedildi!');
                 },
 
                 loadProgram(id) {
                     if (this.programExercises.length > 0 && !confirm('Mevcut program silinecek. Devam edilsin mi?')) return;
 
-                    const program = this.savedPrograms.find(p => p.id === id);
+                    const program = this.programs.find(p => p.id === id);
                     if (program) {
                         this.programExercises = JSON.parse(JSON.stringify(program.exercises));
                         this.programName = program.name;
@@ -881,30 +1997,106 @@
                     }
                 },
 
-                deleteSavedProgram(id) {
-                    if (confirm('Bu kayıtlı programı silmek istediğinize emin misiniz?')) {
-                        this.savedPrograms = this.savedPrograms.filter(p => p.id !== id);
-                    }
+                async deleteProgram(id) {
+                    if (!confirm('Bu kayıtlı programı silmek istediğinize emin misiniz?')) return;
+                    await db.collection('programs').doc(id).delete();
+                },
+
+                async submitProgram(id) {
+                    if (this.userProfile?.role !== 'trainer') return;
+                    await db.collection('programs').doc(id).update({
+                        visibility: 'trainer-submitted',
+                        submittedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                },
+
+                async publishProgram(id) {
+                    if (this.userProfile?.role !== 'admin') return;
+                    await db.collection('programs').doc(id).update({
+                        visibility: 'admin-published',
+                        approvedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        approvedBy: this.currentUser.uid,
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
                 },
 
                 // Utilities
-                handleFileUpload(event, type) {
+                async handleFileUpload(event, type) {
                     const file = event.target.files[0];
                     if (!file) return;
 
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        if (type === 'category') this.forms.category.imageUrl = e.target.result;
-                        if (type === 'exercise') this.forms.exercise.imageUrl = e.target.result;
-                    };
-                    reader.readAsDataURL(file);
+                    const resizedFile = await new Promise((resolve) => {
+                        const reader = new FileReader();
+                        reader.readAsDataURL(file);
+                        reader.onload = (e) => {
+                            const img = new Image();
+                            img.src = e.target.result;
+                            img.onload = () => {
+                                const MAX_SIZE = 520;
+                                let width = img.width;
+                                let height = img.height;
+
+                                if (width > MAX_SIZE || height > MAX_SIZE) {
+                                    if (width > height) {
+                                        height *= MAX_SIZE / width;
+                                        width = MAX_SIZE;
+                                    } else {
+                                        width *= MAX_SIZE / height;
+                                        height = MAX_SIZE;
+                                    }
+                                }
+
+                                const canvas = document.createElement('canvas');
+                                canvas.width = width;
+                                canvas.height = height;
+                                const ctx = canvas.getContext('2d');
+                                ctx.drawImage(img, 0, 0, width, height);
+
+                                canvas.toBlob((blob) => {
+                                    if(blob) {
+                                        const newFile = new File([blob], file.name, {
+                                            type: 'image/jpeg',
+                                            lastModified: Date.now()
+                                        });
+                                        resolve(newFile);
+                                    } else {
+                                        resolve(file);
+                                    }
+                                }, 'image/jpeg', 0.85);
+                            };
+                            img.onerror = () => resolve(file);
+                        };
+                        reader.onerror = () => resolve(file);
+                    });
+
+                    try {
+                        const fileName = `${Date.now()}-${resizedFile.name}`;
+                        const ref = storage.ref().child(`uploads/${fileName}`);
+                        await ref.put(resizedFile);
+                        const url = await ref.getDownloadURL();
+                        if (type === 'category') this.forms.category.imageUrl = url;
+                        if (type === 'exercise') this.forms.exercise.imageUrl = url;
+                        if (type === 'editCategory') this.forms.editCategory.imageUrl = url;
+                        if (type === 'editExercise') this.forms.editExercise.imageUrl = url;
+                    } catch (err) {
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                            if (type === 'category') this.forms.category.imageUrl = e.target.result;
+                            if (type === 'exercise') this.forms.exercise.imageUrl = e.target.result;
+                            if (type === 'editCategory') this.forms.editCategory.imageUrl = e.target.result;
+                            if (type === 'editExercise') this.forms.editExercise.imageUrl = e.target.result;
+                        };
+                        reader.readAsDataURL(resizedFile);
+                        alert('Resim yükleme hatası. Geçici olarak yerel veri kullanılacak.');
+                    }
                 },
 
                 exportData() {
                     const data = {
-                        version: '3.1',
+                        version: '4.0',
                         categories: this.categories,
-                        savedPrograms: this.savedPrograms
+                        programs: this.getMyPrograms()
                     };
                     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
                     const url = URL.createObjectURL(blob);
@@ -921,11 +2113,29 @@
                     input.onchange = (e) => {
                         const file = e.target.files[0];
                         const reader = new FileReader();
-                        reader.onload = (e) => {
+                        reader.onload = async (e) => {
                             try {
                                 const data = JSON.parse(e.target.result);
-                                if (data.categories) this.categories = data.categories;
-                                if (data.savedPrograms) this.savedPrograms = data.savedPrograms;
+                                if (data.categories && Array.isArray(data.categories)) {
+                                    if (!this.currentUser) return alert('Kütüphaneyi içe aktarmak için giriş yapın.');
+                                    await this.importCategories(data.categories);
+                                }
+                                if (data.programs && Array.isArray(data.programs)) {
+                                    if (!this.currentUser) return alert('Programları içe aktarmak için giriş yapın.');
+                                    data.programs.forEach(program => {
+                                        db.collection('programs').add({
+                                            name: program.name,
+                                            exercises: program.exercises || [],
+                                            visibility: 'trainer-private',
+                                            ownerUid: this.currentUser.uid,
+                                            ownerEmail: this.currentUser.email || '',
+                                            ownerName: this.userProfile?.name || '',
+                                            ownerRole: this.userProfile?.role || '',
+                                            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                                            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                                        });
+                                    });
+                                }
                                 alert('Yedek başarıyla yüklendi!');
                             } catch (err) {
                                 alert('Dosya okuma hatası!');
@@ -936,6 +2146,41 @@
                     input.click();
                 },
 
+                async importCategories(categories) {
+                    if (!this.currentUser) return;
+                    if (!Array.isArray(categories) || categories.length === 0) return;
+
+                    try {
+                        const batch = db.batch();
+                        categories.forEach((cat) => {
+                            const catId = (cat?.id || Date.now().toString()).toString();
+                            const exercises = Array.isArray(cat?.exercises)
+                                ? cat.exercises.map((ex) => ({
+                                    id: (ex?.id || Date.now().toString()).toString(),
+                                    name: ex?.name || '',
+                                    imageUrl: ex?.imageUrl || '',
+                                    sets: Number.isFinite(ex?.sets) ? ex.sets : 3,
+                                    reps: Number.isFinite(ex?.reps) ? ex.reps : 10
+                                }))
+                                : [];
+
+                            batch.set(db.collection('categories').doc(catId), {
+                                name: cat?.name || 'Kategori',
+                                coverImage: cat?.coverImage || '',
+                                exercises: exercises,
+                                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                                createdBy: this.currentUser.uid,
+                                createdByEmail: this.currentUser.email || ''
+                            }, { merge: true });
+                        });
+                        await batch.commit();
+                    } catch (err) {
+                        console.error(err);
+                        alert('Kategoriler içe aktarılamadı.');
+                    }
+                },
+
                 printProgram() {
                     const container = document.getElementById('print-container');
                     container.innerHTML = ''; // Clear previous
@@ -943,87 +2188,166 @@
                     const items = this.programExercises;
                     if (items.length === 0) return alert('Yazdırılacak program yok!');
 
-                    const chunkSize = 5;
-                    const chunks = [];
-                    for (let i = 0; i < items.length; i += chunkSize) {
-                        chunks.push(items.slice(i, i + chunkSize));
+                    // Layout Constants (Approximated in mm)
+                    const PAGE_HEIGHT = 240; // Available content height (290mm total - Header 25mm - Footer 15mm - Padding 10mm)
+                    const ROW_HEIGHT = 70; // Grid row height
+                    const TITLE_HEIGHT = 15; // Title header height
+
+                    let pages = [];
+                    let currentPage = { elements: [], currentHeight: 0 };
+
+                    // Buffer for grid row (max 3 items)
+                    let rowBuffer = [];
+
+                    const flushRow = () => {
+                        if (rowBuffer.length === 0) return;
+
+                        // Check if row fits in current page
+                        if (currentPage.currentHeight + ROW_HEIGHT > PAGE_HEIGHT) {
+                            pages.push(currentPage);
+                            currentPage = { elements: [], currentHeight: 0 };
+                        }
+
+                        currentPage.elements.push({ type: 'row', items: [...rowBuffer] });
+                        currentPage.currentHeight += ROW_HEIGHT;
+                        rowBuffer = [];
+                    };
+
+                    const addTitle = (item) => {
+                        flushRow(); // Finish any pending exercises in buffer
+
+                        // Check if title fits (titles are small so usually fine, but good to check)
+                        // If near end of page, push to next
+                        if (currentPage.currentHeight + TITLE_HEIGHT > PAGE_HEIGHT) {
+                            pages.push(currentPage);
+                            currentPage = { elements: [], currentHeight: 0 };
+                        } else if (currentPage.currentHeight > PAGE_HEIGHT - ROW_HEIGHT) {
+                            // Heuristic: If there is very little space left after title (not enough for a row), 
+                            // push title to next page to keep it with content.
+                            pages.push(currentPage);
+                            currentPage = { elements: [], currentHeight: 0 };
+                        }
+
+                        currentPage.elements.push({ type: 'title', item: item });
+                        currentPage.currentHeight += TITLE_HEIGHT;
+                    };
+
+                    const addExercise = (item) => {
+                        rowBuffer.push(item);
+                        if (rowBuffer.length === 3) {
+                            flushRow();
+                        }
+                    };
+
+                    // 1. Process Items into Pages
+                    items.forEach(item => {
+                        if (item.type === 'title') {
+                            addTitle(item);
+                        } else {
+                            addExercise(item);
+                        }
+                    });
+
+                    // Flush remaining items
+                    flushRow();
+                    if (currentPage.elements.length > 0) {
+                        pages.push(currentPage);
                     }
 
-                    chunks.forEach((chunk, pageIndex) => {
+                    // 2. Render HTML for Pages
+                    pages.forEach((pageData, pageIndex) => {
                         const page = document.createElement('div');
                         page.className = 'print-page';
 
-                        // Header
-                        let headerHtml = `
-                            <div class="flex items-center justify-between mb-4 border-b border-slate-200 pb-2 h-[25mm]">
+                        // Page Header
+                        let html = `
+                            <div class="flex items-center justify-between mb-2 border-b border-slate-200 pb-2 h-[25mm] shrink-0">
                                 <div class="flex items-center gap-4">
-                                    <img src="https://genclikspor.sultanbeyli.bel.tr/wp-content/uploads/2025/03/cfaa4b07-dfa2-4285-876c-656a144fd43a.png" class="h-12 w-auto object-contain">
+                                    <img src="https://firebasestorage.googleapis.com/v0/b/fitnessapp-3508e.firebasestorage.app/o/logo.png?alt=media&token=156a261e-b7d1-4749-af84-aa84548f74cd" class="h-12 w-auto object-contain">
                                     <div>
                                         <h1 class="text-xl font-bold text-slate-800">Egzersiz Programı</h1>
-                                        <p class="text-slate-500 text-xs">${this.programName || 'İsimsiz Program'}</p>
+                                        <p class="text-slate-500 text-xs">${this.programName || 'Özel Program'}</p>
                                     </div>
                                 </div>
                                 <div class="text-right text-xs text-slate-400">
-                                    Sayfa ${pageIndex + 1} / ${chunks.length}
+                                    Sayfa ${pageIndex + 1} / ${pages.length}
                                 </div>
                             </div>
-                            <div class="flex flex-col gap-3 flex-1"> 
+                            
+                            <!-- Content Area -->
+                            <div class="flex flex-col gap-2 flex-1 w-full"> 
                         `;
 
-                        // Items
-                        chunk.forEach(item => {
-                            if (item.type === 'title') {
-                                headerHtml += `
-                                    <div class="bg-amber-50 border border-amber-200 rounded p-2 text-center shrink-0">
-                                        <h4 class="font-bold text-amber-800 text-base">${item.name}</h4>
+                        // Render Elements
+                        pageData.elements.forEach(el => {
+                            if (el.type === 'title') {
+                                html += `
+                                    <div class="bg-slate-100 border border-slate-200 rounded p-1.5 text-left shrink-0 w-full mb-1 px-3">
+                                        <h4 class="font-bold text-slate-800 text-sm uppercase tracking-wider">${el.item.name}</h4>
                                     </div>
                                 `;
-                            } else {
-                                headerHtml += `
-                                    <div class="flex border border-slate-200 rounded overflow-hidden bg-white shrink-0 h-[38mm]">
-                                        <div class="flex-1 p-3 flex flex-col justify-center min-w-0">
-                                            <h4 class="font-bold text-slate-800 text-lg mb-1 truncate">${item.name}</h4>
-                                            <div class="flex gap-2 text-xs">
-                                                <span class="bg-slate-100 px-2 py-1 rounded font-medium whitespace-nowrap">Set: ${item.sets}</span>
-                                                <span class="bg-slate-100 px-2 py-1 rounded font-medium whitespace-nowrap">Tekrar: ${item.reps}</span>
+                            } else if (el.type === 'row') {
+                                html += `<div class="grid grid-cols-3 gap-3 w-full mb-1">`;
+                                el.items.forEach(ex => {
+                                    html += `
+                                        <div class="border border-slate-200 rounded-lg overflow-hidden bg-white flex flex-col h-[65mm]">
+                                            <div class="h-[40mm] bg-slate-50 border-b border-slate-100 relative group">
+                                                <img src="${ex.imageUrl}" class="w-full h-full object-cover">
+                                            </div>
+                                            <div class="p-2 flex-1 flex flex-col justify-between">
+                                                <h4 class="font-bold text-slate-800 text-xs line-clamp-2 leading-tight">${ex.name}</h4>
+                                                
+                                                <div class="flex items-center gap-2 mt-1">
+                                                    <div class="flex-1 bg-slate-50 border border-slate-100 rounded px-2 py-1 flex items-center justify-center gap-1.5">
+                                                        <span class="text-[10px] text-slate-500 font-semibold uppercase">Set:</span>
+                                                        <span class="font-bold text-slate-800 text-sm">${ex.sets}</span>
+                                                    </div>
+                                                    <div class="flex-1 bg-slate-50 border border-slate-100 rounded px-2 py-1 flex items-center justify-center gap-1.5">
+                                                        <span class="text-[10px] text-slate-500 font-semibold uppercase">Tekrar:</span>
+                                                        <span class="font-bold text-slate-800 text-sm">${ex.reps}</span>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
-                                        <div class="w-1/3 bg-slate-100 border-l border-slate-100 shrink-0">
-                                            <img src="${item.imageUrl}" class="w-full h-full object-cover">
-                                        </div>
-                                    </div>
-                                `;
+                                    `;
+                                });
+                                // Fill empty grid cells if row is not full
+                                for (let i = el.items.length; i < 3; i++) {
+                                    html += `<div class="h-[65mm]"></div>`;
+                                }
+                                html += `</div>`;
                             }
                         });
 
-                        headerHtml += `</div>`; // Close content area
 
-                        // Footer (Flex mt-auto for safety)
-                        headerHtml += `
-                            <div class="mt-auto pt-2 border-t border-slate-200 flex justify-between items-center h-[15mm]">
-                                <img src="https://genclikspor.sultanbeyli.bel.tr/wp-content/uploads/2025/03/cfaa4b07-dfa2-4285-876c-656a144fd43a.png" class="h-10 w-auto object-contain">
-                                <img src="https://kultursanat.sultanbeyli.bel.tr/wp-content/uploads/2023/08/s_logo.png" class="h-10 w-auto object-contain">
+                        html += `</div>`; // Close content area
+
+                        // Footer
+                        html += `
+                            <div class="mt-auto pt-2 border-t border-slate-200 flex justify-between items-center h-[15mm] shrink-0">
+                                <img src="mudurluk_logo.png" class="h-8 w-auto object-contain grayscale opacity-70">
                             </div>
                         `;
 
-                        page.innerHTML = headerHtml;
+                        page.innerHTML = html;
                         container.appendChild(page);
                     });
 
-                    // Wait for images to load before printing
+                    // Wait for images to load
                     const images = container.querySelectorAll('img');
                     const promises = Array.from(images).map(img => {
                         if (img.complete) return Promise.resolve();
                         return new Promise(resolve => {
                             img.onload = resolve;
-                            img.onerror = resolve; // Don't block on error
+                            img.onerror = resolve;
                         });
                     });
 
                     Promise.all(promises).then(() => {
-                        setTimeout(() => { // Small buffer for rendering
+                        // Small delay to ensure rendering is stabilized
+                        setTimeout(() => {
                             window.print();
-                        }, 100);
+                        }, 250);
                     });
                 }
             }

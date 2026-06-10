@@ -12,6 +12,9 @@
     <!-- Alpine.js -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
 
+    <!-- html2pdf.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
     <!-- Phosphor Icons -->
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
 
@@ -776,9 +779,9 @@
                         class="px-1 py-2 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors text-[10px] sm:text-xs font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex flex-col sm:flex-row items-center justify-center gap-1">
                         <i class="ph ph-printer text-lg sm:text-sm"></i> <span>Yazdır</span>
                     </button>
-                    <button @click="printProgram()" :disabled="programExercises.length === 0"
+                    <button @click="printProgram('pdf')" :disabled="programExercises.length === 0"
                         class="px-1 py-2 bg-slate-800 dark:bg-slate-700 text-white rounded-lg hover:bg-slate-700 dark:hover:bg-slate-600 transition-colors text-[10px] sm:text-xs font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex flex-col sm:flex-row items-center justify-center gap-1">
-                        <i class="ph ph-file-pdf text-lg sm:text-sm"></i> <span>PDF</span>
+                        <i class="ph ph-download-simple text-lg sm:text-sm"></i> <span>İndir</span>
                     </button>
                 </div>
             </div>
@@ -2357,7 +2360,7 @@
                     }
                 },
 
-                printProgram() {
+                printProgram(mode = 'print') {
                     const container = document.getElementById('print-container');
                     container.innerHTML = ''; // Clear previous
 
@@ -2520,10 +2523,33 @@
                     });
 
                     Promise.all(promises).then(() => {
-                        // Small delay to ensure rendering is stabilized
-                        setTimeout(() => {
-                            window.print();
-                        }, 250);
+                        if (mode === 'pdf') {
+                            container.style.position = 'absolute';
+                            container.style.top = '-9999px';
+                            container.style.display = 'block';
+                            container.classList.remove('hidden');
+
+                            const opt = {
+                                margin: [10, 10, 10, 10],
+                                filename: `${this.programName || 'Egzersiz_Programi'}.pdf`,
+                                image: { type: 'jpeg', quality: 0.98 },
+                                html2canvas: { scale: 2, useCORS: true },
+                                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                            };
+
+                            html2pdf().set(opt).from(container).save().then(() => {
+                                container.style.position = '';
+                                container.style.top = '';
+                                container.style.display = '';
+                                container.classList.add('hidden');
+                                container.innerHTML = '';
+                            });
+                        } else {
+                            // Small delay to ensure rendering is stabilized
+                            setTimeout(() => {
+                                window.print();
+                            }, 250);
+                        }
                     });
                 }
             }

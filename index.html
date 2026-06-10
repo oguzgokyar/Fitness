@@ -2457,7 +2457,7 @@
                         let html = `
                             <div class="flex items-center justify-between mb-2 border-b border-slate-200 pb-2 h-[25mm] shrink-0">
                                 <div class="flex items-center gap-4">
-                                    <img src="https://firebasestorage.googleapis.com/v0/b/fitnessapp-3508e.firebasestorage.app/o/logo.png?alt=media&token=156a261e-b7d1-4749-af84-aa84548f74cd" class="h-12 w-auto object-contain">
+                                    <img src="https://firebasestorage.googleapis.com/v0/b/fitnessapp-3508e.firebasestorage.app/o/logo.png?alt=media&token=156a261e-b7d1-4749-af84-aa84548f74cd" crossorigin="anonymous" class="h-12 w-auto object-contain">
                                     <div>
                                         <h1 class="text-xl font-bold text-slate-800">Egzersiz Programı</h1>
                                         <p class="text-slate-500 text-xs">${this.programName || 'Özel Program'}</p>
@@ -2486,7 +2486,7 @@
                                     html += `
                                         <div class="border border-slate-200 rounded-lg overflow-hidden bg-white flex flex-col h-[65mm]">
                                             <div class="h-[40mm] bg-slate-50 border-b border-slate-100 relative group">
-                                                <img src="${ex.imageUrl}" class="w-full h-full object-cover">
+                                                <img src="${ex.imageUrl}" crossorigin="anonymous" class="w-full h-full object-cover">
                                             </div>
                                             <div class="p-2 flex-1 flex flex-col justify-between">
                                                 <h4 class="font-bold text-slate-800 text-xs line-clamp-2 leading-tight">${ex.name}</h4>
@@ -2539,19 +2539,6 @@
 
                     Promise.all(promises).then(() => {
                         if (mode === 'pdf') {
-                            // Create a temporary clone to render the PDF properly without affecting the UI
-                            const clone = container.cloneNode(true);
-                            clone.id = 'pdf-temp-container';
-                            clone.classList.remove('hidden');
-                            clone.style.display = 'block';
-                            clone.style.position = 'absolute';
-                            clone.style.top = '0';
-                            clone.style.left = '0';
-                            clone.style.zIndex = '-9999';
-                            clone.style.width = '210mm';
-                            clone.style.backgroundColor = 'white';
-                            document.body.appendChild(clone);
-
                             const opt = {
                                 margin: 0,
                                 filename: `${this.programName || 'Egzersiz_Programi'}.pdf`,
@@ -2561,17 +2548,18 @@
                                     useCORS: true, 
                                     letterRendering: true, 
                                     backgroundColor: '#ffffff',
-                                    scrollY: 0,
-                                    scrollX: 0
+                                    onclone: function(clonedDoc) {
+                                        const el = clonedDoc.getElementById('print-container');
+                                        el.style.display = 'block';
+                                        el.classList.remove('hidden');
+                                        el.style.width = '210mm';
+                                    }
                                 },
                                 jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
                                 pagebreak: { mode: ['css', 'legacy'] }
                             };
 
-                            html2pdf().set(opt).from(clone).save().then(() => {
-                                // Clean up the temporary clone
-                                document.body.removeChild(clone);
-                            });
+                            html2pdf().set(opt).from(container).save();
                         } else {
                             // Small delay to ensure rendering is stabilized
                             setTimeout(() => {
